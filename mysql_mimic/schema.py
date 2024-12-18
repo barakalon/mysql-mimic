@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 import re
 from collections import defaultdict
 from itertools import chain
@@ -28,9 +29,51 @@ class Column:
     catalog: Optional[str] = "def"
 
 
+class ColumnField(str, Enum):
+    TYPE = ("type",)
+    COMMENT = ("comment",)
+    DEFAULT = ("default",)
+    IS_NULLABLE = ("is_nullable",)
+
+
 def mapping_to_columns(schema: dict) -> List[Column]:
-    """Convert a schema mapping into a list of Column instances"""
+    """Convert a schema mapping into a list of Column instances.
+
+    Example schema defining columns by type:
+     {
+         "customer_table" : {
+           "first_name" : "TEXT"
+           "last_name" : "TEXT"
+           "id" : "INT"
+         },
+         "sales_table" : {
+           "ds" : "DATE"
+           "customer_id" : "INT"
+           "amount" : "DOUBLE"
+         }
+    }
+
+    Example with column metadata:
+     {
+         "customer_table" : {
+           "first_name" : { "type": "TEXT", "comment": "First name." }
+           "last_name" : { "type": "TEXT", "comment": "Last name." }
+           "id" : { "type": "INT", "comment": "Customer id." }
+         },
+         "sales_table" : {
+           "ds" : { "type": "DATE", "comment": "Date of sale." }
+           "customer_id" : { "type": "INT" }
+           "amount" : { "type": "DOUBLE", "comment": "Amount of sale in dollars." "default": "0"}
+         }
+    }
+
+    """
     depth = dict_depth(schema)
+
+    # Check whether the columns are defined with a set of metadata or only the type.
+    if contains_column_metadata(schema=schema, depth=depth):
+        depth -= 1
+
     if depth < 2:
         return []
     if depth == 2:
@@ -48,17 +91,30 @@ def mapping_to_columns(schema: dict) -> List[Column]:
     for catalog, dbs in schema.items():
         for db, tables in dbs.items():
             for table, cols in tables.items():
-                for column, coltype in cols.items():
-                    result.append(
-                        Column(
-                            name=column,
-                            type=coltype,
-                            table=table,
-                            schema=db,
-                            catalog=catalog,
+                for column, colinfo in cols.items():
+                    if isinstance(colinfo, Dict):
+                        result.append(
+                            Column(
+                                name=column,
+                                type=colinfo.get(ColumnField.TYPE, None),
+                                table=table,
+                                schema=db,
+                                catalog=catalog,
+                                comment=colinfo.get(ColumnField.COMMENT, None),
+                                default=colinfo.get(ColumnField.DEFAULT, None),
+                                is_nullable=colinfo.get(ColumnField.IS_NULLABLE, True),
+                            )
                         )
-                    )
-
+                    else:
+                        result.append(
+                            Column(
+                                name=column,
+                                type=colinfo,
+                                table=table,
+                                schema=db,
+                                catalog=catalog,
+                            )
+                        )
     return result
 
 
@@ -268,6 +324,23 @@ def like_to_regex(like: str) -> re.Pattern:
     like = like.replace("%", ".*?")
     like = like.replace("_", ".")
     return re.compile(like)
+
+
+def contains_column_metadata(schema, depth) -> bool:
+    sub_dict = schema
+
+    # Find the innermost dictionary.
+    for _ in range(depth - 1):
+        key = list(sub_dict.keys())[0]
+        sub_dict = sub_dict.get(key)
+
+    # If the keys in the innermost dictionary are all column fields, this is a column.
+    not_metadata = [
+        key
+        for key in list(sub_dict.keys())
+        if key not in [f.value for f in ColumnField]
+    ]
+    return len(not_metadata) == 0
 
 
 class BaseInfoSchema:
