@@ -30,7 +30,7 @@ PASSWORD_AUTH_PLUGIN = NativePasswordAuthPlugin.client_plugin_name
 
 
 class TestPlugin(AbstractClearPasswordAuthPlugin):
-    name = "test_plugin"
+    name = "mysql_clear_password"
 
     async def check(self, username: str, password: str) -> Optional[str]:
         return username if username == password else None

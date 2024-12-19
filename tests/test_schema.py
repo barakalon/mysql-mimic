@@ -1,5 +1,6 @@
-from mysql_mimic.schema import Column, mapping_to_columns
 import pytest
+
+from mysql_mimic.schema import Column, mapping_to_columns
 
 
 @pytest.mark.asyncio
@@ -24,9 +25,13 @@ def test_schema_type_only() -> None:
 def test_schema_with_col_metadata() -> None:
     schema = {
         "table_1": {
-            "col_1": {"type": "TEXT", "comment": "this is a comment", "default": "default"},
+            "col_1": {
+                "type": "TEXT",
+                "comment": "this is a comment",
+                "default": "default",
+            },
             "col_2": {"type": "INT", "comment": "this is another comment"},
-            "col_3": {"type": "DOUBLE", "comment": "comment", "is_nullable": False}
+            "col_3": {"type": "DOUBLE", "comment": "comment", "is_nullable": False},
         }
     }
 
@@ -39,7 +44,7 @@ def test_schema_with_col_metadata() -> None:
         schema="",
         catalog="def",
         comment="this is a comment",
-        default="default"
+        default="default",
     )
     assert columns[1] == Column(
         name="col_2",

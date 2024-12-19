@@ -226,7 +226,7 @@ class NoLoginAuthPlugin(AuthPlugin):
     This is useful for user accounts that can only be accessed by proxy authentication.
     """
 
-    name = "mysql_no_login"
+    # name = "mysql_no_login"
 
     async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
         if not auth_info:
@@ -238,7 +238,7 @@ class IdentityProvider:
     """
     Abstract base class for an identity provider.
 
-    An identity provider tells the server with authentication plugins to make
+    An identity provider tells the server which authentication plugins to make
     available to clients and how to retrieve users.
     """
 
