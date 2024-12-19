@@ -326,7 +326,7 @@ def like_to_regex(like: str) -> re.Pattern:
     return re.compile(like)
 
 
-def contains_column_metadata(schema, depth) -> bool:
+def contains_column_metadata(schema: dict, depth: int) -> bool:
     sub_dict = schema
 
     # Find the innermost dictionary.
