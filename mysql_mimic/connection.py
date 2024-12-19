@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 class Connection:
     _MAX_PREPARED_STMT_ID = 2**32
 
+    # pylint: disable=too-many-positional-arguments
     def __init__(
         self,
         stream: MysqlStream,
@@ -196,6 +197,7 @@ class Connection:
 
         await self.session.reset()
 
+    # pylint: disable=too-many-positional-arguments
     async def authenticate(
         self,
         username: str,

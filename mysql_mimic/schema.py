@@ -327,7 +327,7 @@ def like_to_regex(like: str) -> re.Pattern:
 
 
 def contains_column_metadata(schema: dict, depth: int) -> bool:
-    sub_dict = schema
+    sub_dict: Any = schema
 
     # Find the innermost dictionary.
     for _ in range(depth - 1):

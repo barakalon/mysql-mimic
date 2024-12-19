@@ -37,6 +37,7 @@ class ResultColumn:
         binary_encoder: Optionally override the function used to encode values for MySQL's binary protocol
     """
 
+    # pylint: disable=too-many-positional-arguments
     def __init__(
         self,
         name: str,
