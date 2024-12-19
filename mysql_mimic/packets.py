@@ -114,7 +114,7 @@ class ComFieldList:
     wildcard: str
 
 
-def make_ok(  # pylint: disable=too-many-positional-arguments
+def make_ok(
     capabilities: Capabilities,
     status_flags: ServerStatus,
     eof: bool = False,
@@ -170,7 +170,7 @@ def make_error(
     return _concat(*parts)
 
 
-def make_handshake_v10(  # pylint: disable=too-many-positional-arguments
+def make_handshake_v10(
     capabilities: Capabilities,
     server_charset: CharacterSet,
     server_version: str,
@@ -338,7 +338,6 @@ def make_column_count(capabilities: Capabilities, column_count: int) -> bytes:
 
 
 # pylint: disable=too-many-arguments
-# pylint: disable=too-many-positional-arguments
 def make_column_definition_41(
     server_charset: CharacterSet,
     schema: Optional[str] = None,

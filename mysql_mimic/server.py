@@ -40,7 +40,6 @@ class MysqlServer:
         **kwargs: extra keyword args passed to the asyncio start server command
     """
 
-    # pylint: disable=too-many-positional-arguments
     def __init__(
         self,
         session_factory: Callable[[], BaseSession | Awaitable[BaseSession]] = Session,
