@@ -52,27 +52,8 @@ def mapping_to_columns(schema: dict) -> List[Column]:
            "amount" : "DOUBLE"
          }
     }
-
-    Example with column metadata:
-     {
-         "customer_table" : {
-           "first_name" : { "type": "TEXT", "comment": "First name." }
-           "last_name" : { "type": "TEXT", "comment": "Last name." }
-           "id" : { "type": "INT", "comment": "Customer id." }
-         },
-         "sales_table" : {
-           "ds" : { "type": "DATE", "comment": "Date of sale." }
-           "customer_id" : { "type": "INT" }
-           "amount" : { "type": "DOUBLE", "comment": "Amount of sale in dollars." "default": "0"}
-         }
-    }
-
     """
     depth = dict_depth(schema)
-
-    # Check whether the columns are defined with a set of metadata or only the type.
-    if contains_column_metadata(schema=schema, depth=depth):
-        depth -= 1
 
     if depth < 2:
         return []
@@ -92,29 +73,15 @@ def mapping_to_columns(schema: dict) -> List[Column]:
         for db, tables in dbs.items():
             for table, cols in tables.items():
                 for column, colinfo in cols.items():
-                    if isinstance(colinfo, Dict):
-                        result.append(
-                            Column(
-                                name=column,
-                                type=colinfo.get(ColumnField.TYPE, None),
-                                table=table,
-                                schema=db,
-                                catalog=catalog,
-                                comment=colinfo.get(ColumnField.COMMENT, None),
-                                default=colinfo.get(ColumnField.DEFAULT, None),
-                                is_nullable=colinfo.get(ColumnField.IS_NULLABLE, True),
-                            )
+                    result.append(
+                        Column(
+                            name=column,
+                            type=colinfo,
+                            table=table,
+                            schema=db,
+                            catalog=catalog,
                         )
-                    else:
-                        result.append(
-                            Column(
-                                name=column,
-                                type=colinfo,
-                                table=table,
-                                schema=db,
-                                catalog=catalog,
-                            )
-                        )
+                    )
     return result
 
 
@@ -326,23 +293,6 @@ def like_to_regex(like: str) -> re.Pattern:
     return re.compile(like)
 
 
-def contains_column_metadata(schema: dict, depth: int) -> bool:
-    sub_dict: Any = schema
-
-    # Find the innermost dictionary.
-    for _ in range(depth - 1):
-        key = list(sub_dict.keys())[0]
-        sub_dict = sub_dict.get(key)
-
-    # If the keys in the innermost dictionary are all column fields, this is a column.
-    not_metadata = [
-        key
-        for key in list(sub_dict.keys())
-        if key not in [f.value for f in ColumnField]
-    ]
-    return len(not_metadata) == 0
-
-
 class BaseInfoSchema:
     """
     Base InfoSchema interface used by the `Session` class.
@@ -367,6 +317,10 @@ class InfoSchema(BaseInfoSchema):
     @classmethod
     def from_mapping(cls, mapping: dict) -> InfoSchema:
         columns = mapping_to_columns(mapping)
+        return cls(info_schema_tables(columns))
+
+    @classmethod
+    def from_columns(cls, columns: List[Column]) -> InfoSchema:
         return cls(info_schema_tables(columns))
 
     def _preprocess(self, expression: exp.Expression) -> exp.Expression:

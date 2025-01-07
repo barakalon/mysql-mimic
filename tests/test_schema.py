@@ -1,10 +1,18 @@
 import pytest
+from sqlglot import Expression
+from sqlglot import expressions as exp
+import sqlglot
 
-from mysql_mimic.schema import Column, mapping_to_columns
+from mysql_mimic.schema import (
+    Column,
+    InfoSchema,
+    mapping_to_columns,
+    show_statement_to_info_schema_query,
+)
 
 
 @pytest.mark.asyncio
-def test_schema_type_only() -> None:
+def test_mapping_to_columns() -> None:
     schema = {
         "table_1": {
             "col_1": "TEXT",
@@ -22,45 +30,39 @@ def test_schema_type_only() -> None:
     )
 
 
-def test_schema_with_col_metadata() -> None:
-    schema = {
-        "table_1": {
-            "col_1": {
-                "type": "TEXT",
-                "comment": "this is a comment",
-                "default": "default",
-            },
-            "col_2": {"type": "INT", "comment": "this is another comment"},
-            "col_3": {"type": "DOUBLE", "comment": "comment", "is_nullable": False},
-        }
-    }
+@pytest.mark.asyncio
+async def test_info_schema_from_columns() -> None:
+    columns = [
+        Column(
+            name="col_1",
+            type="TEXT",
+            table="table_1",
+            schema="my_db",
+            catalog="def",
+            comment="This is a comment",
+        ),
+        Column(
+            name="col_1", type="TEXT", table="table_2", schema="my_db", catalog="def"
+        ),
+    ]
+    schema = InfoSchema.from_columns(columns=columns)
+    table_query = show_statement_to_info_schema_query(exp.Show(this="TABLES"), "my_db")
+    tables, _ = await schema.query(table_query)
+    assert tables[0][0] == "table_1"
+    assert tables[1][0] == "table_2"
 
-    columns = mapping_to_columns(schema=schema)
-
-    assert columns[0] == Column(
-        name="col_1",
-        type="TEXT",
-        table="table_1",
-        schema="",
-        catalog="def",
-        comment="this is a comment",
-        default="default",
+    column_query = show_statement_to_info_schema_query(
+        exp.Show(this="COLUMNS", full=True, target="table_1"), "my_db"
     )
-    assert columns[1] == Column(
-        name="col_2",
-        type="INT",
-        table="table_1",
-        schema="",
-        catalog="def",
-        comment="this is another comment",
-    )
-
-    assert columns[2] == Column(
-        name="col_3",
-        type="DOUBLE",
-        table="table_1",
-        schema="",
-        catalog="def",
-        comment="comment",
-        is_nullable=False,
+    columns, _ = await schema.query(column_query)
+    assert columns[0] == (
+        "col_1",
+        "TEXT",
+        "YES",
+        None,
+        None,
+        None,
+        "NULL",
+        None,
+        "This is a comment",
     )

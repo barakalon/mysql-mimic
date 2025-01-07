@@ -779,7 +779,7 @@ async def test_describe_select(
             ],
         ),
         (
-            "select database(), schema(), left(user(),instr('@', concat(user(),'@'))-1)",
+            "select database(), schema(), left(user(),instr(concat(user(),'@'), '@')-1)",
             [{"DATABASE()": None, "SCHEMA()": None, "_col_2": "levon_helm"}],
         ),
         (queries.DATA_GRIP_PARAMETERS, []),

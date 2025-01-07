@@ -226,7 +226,8 @@ class NoLoginAuthPlugin(AuthPlugin):
     This is useful for user accounts that can only be accessed by proxy authentication.
     """
 
-    # name = "mysql_no_login"
+    name = "mysql_no_login"
+    client_plugin_name = None
 
     async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
         if not auth_info:
