@@ -1,14 +1,14 @@
 import pytest
-from sqlglot import Expression
 from sqlglot import expressions as exp
-import sqlglot
 
+from mysql_mimic.results import ensure_result_set
 from mysql_mimic.schema import (
     Column,
     InfoSchema,
     mapping_to_columns,
     show_statement_to_info_schema_query,
 )
+from mysql_mimic.utils import aiterate
 
 
 @pytest.mark.asyncio
@@ -32,7 +32,7 @@ def test_mapping_to_columns() -> None:
 
 @pytest.mark.asyncio
 async def test_info_schema_from_columns() -> None:
-    columns = [
+    input_columns = [
         Column(
             name="col_1",
             type="TEXT",
@@ -45,24 +45,27 @@ async def test_info_schema_from_columns() -> None:
             name="col_1", type="TEXT", table="table_2", schema="my_db", catalog="def"
         ),
     ]
-    schema = InfoSchema.from_columns(columns=columns)
+    schema = InfoSchema.from_columns(columns=input_columns)
     table_query = show_statement_to_info_schema_query(exp.Show(this="TABLES"), "my_db")
-    tables, _ = await schema.query(table_query)
-    assert tables[0][0] == "table_1"
-    assert tables[1][0] == "table_2"
+    result_set = await ensure_result_set(await schema.query(table_query))
+    table_names = [row[0] async for row in aiterate(result_set.rows)]
+    assert table_names == ["table_1", "table_2"]
 
     column_query = show_statement_to_info_schema_query(
         exp.Show(this="COLUMNS", full=True, target="table_1"), "my_db"
     )
-    columns, _ = await schema.query(column_query)
-    assert columns[0] == (
-        "col_1",
-        "TEXT",
-        "YES",
-        None,
-        None,
-        None,
-        "NULL",
-        None,
-        "This is a comment",
-    )
+    column_results = await ensure_result_set(await schema.query(column_query))
+    columns = [row async for row in aiterate(column_results.rows)]
+    assert columns == [
+        (
+            "col_1",
+            "TEXT",
+            "YES",
+            None,
+            None,
+            None,
+            "NULL",
+            None,
+            "This is a comment",
+        )
+    ]
