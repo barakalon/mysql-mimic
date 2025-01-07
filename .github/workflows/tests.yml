@@ -10,19 +10,13 @@ jobs:
   build:
     strategy:
       matrix:
-        version:
-            - python: "3.7"
-              ubuntu: "ubuntu-22.04",
-            - python: "3.8"
-              ubuntu: "ubuntu-22.04",
-            - python: "3.9",
-              ubuntu: "ubuntu-latest"
-            - python: "3.10",
-              ubuntu: "ubuntu-latest"
-            - python: "3.11",
-              ubuntu: "ubuntu-latest"
-            - python: "3.12"
-              ubuntu: "ubuntu-latest"
+        version: [
+            { python: "3.7", ubuntu: "ubuntu-22.04" },
+            { python: "3.8", ubuntu: "ubuntu-22.04" },
+            { python: "3.9", ubuntu: "ubuntu-latest" },
+            { python: "3.10", ubuntu: "ubuntu-latest" },
+            { python: "3.11", ubuntu: "ubuntu-latest" },
+            { python: "3.12", ubuntu: "ubuntu-latest" } ]
     runs-on: ${{ matrix.version.ubuntu }}
     steps:
     - uses: actions/checkout@v2
