@@ -28,14 +28,6 @@ class Column:
     schema: Optional[str] = None
     catalog: Optional[str] = "def"
 
-
-class ColumnField(str, Enum):
-    TYPE = ("type",)
-    COMMENT = ("comment",)
-    DEFAULT = ("default",)
-    IS_NULLABLE = ("is_nullable",)
-
-
 def mapping_to_columns(schema: dict) -> List[Column]:
     """Convert a schema mapping into a list of Column instances.
 
@@ -72,11 +64,11 @@ def mapping_to_columns(schema: dict) -> List[Column]:
     for catalog, dbs in schema.items():
         for db, tables in dbs.items():
             for table, cols in tables.items():
-                for column, colinfo in cols.items():
+                for column, coltype in cols.items():
                     result.append(
                         Column(
                             name=column,
-                            type=colinfo,
+                            type=coltype,
                             table=table,
                             schema=db,
                             catalog=catalog,
