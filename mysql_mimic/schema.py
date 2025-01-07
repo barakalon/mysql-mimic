@@ -29,7 +29,22 @@ class Column:
 
 
 def mapping_to_columns(schema: dict) -> List[Column]:
-    """Convert a schema mapping into a list of Column instances"""
+    """Convert a schema mapping into a list of Column instances.
+
+    Example schema defining columns by type:
+     {
+         "customer_table" : {
+           "first_name" : "TEXT"
+           "last_name" : "TEXT"
+           "id" : "INT"
+         },
+         "sales_table" : {
+           "ds" : "DATE"
+           "customer_id" : "INT"
+           "amount" : "DOUBLE"
+         }
+    }
+    """
     depth = dict_depth(schema)
     if depth < 2:
         return []
@@ -294,6 +309,10 @@ class InfoSchema(BaseInfoSchema):
     @classmethod
     def from_mapping(cls, mapping: dict) -> InfoSchema:
         columns = mapping_to_columns(mapping)
+        return cls(info_schema_tables(columns))
+
+    @classmethod
+    def from_columns(cls, columns: List[Column]) -> InfoSchema:
         return cls(info_schema_tables(columns))
 
     def _preprocess(self, expression: exp.Expression) -> exp.Expression:

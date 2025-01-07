@@ -21,3 +21,4 @@ disable=
 
 max-args=10
 max-line-length=130
+max-positional-arguments=15

@@ -227,6 +227,7 @@ class NoLoginAuthPlugin(AuthPlugin):
     """
 
     name = "mysql_no_login"
+    client_plugin_name = None
 
     async def auth(self, auth_info: Optional[AuthInfo] = None) -> AuthState:
         if not auth_info:
@@ -238,7 +239,7 @@ class IdentityProvider:
     """
     Abstract base class for an identity provider.
 
-    An identity provider tells the server with authentication plugins to make
+    An identity provider tells the server which authentication plugins to make
     available to clients and how to retrieve users.
     """
 

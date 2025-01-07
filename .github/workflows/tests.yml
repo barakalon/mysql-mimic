@@ -8,18 +8,24 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+        version: [
+            { python: "3.7", ubuntu: "ubuntu-22.04" },
+            { python: "3.8", ubuntu: "ubuntu-22.04" },
+            { python: "3.9", ubuntu: "ubuntu-latest" },
+            { python: "3.10", ubuntu: "ubuntu-latest" },
+            { python: "3.11", ubuntu: "ubuntu-latest" },
+            { python: "3.12", ubuntu: "ubuntu-latest" } ]
+    runs-on: ${{ matrix.version.ubuntu }}
     steps:
     - uses: actions/checkout@v2
     - name: Set up Kerberos
       run: sudo apt-get install -y libkrb5-dev krb5-kdc krb5-admin-server
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+    - name: Set up Python ${{ matrix.version.python }}
+      uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: ${{ matrix.version.python }}
         cache: pip
         cache-dependency-path: setup.py
     - name: Install dependencies
@@ -30,15 +36,15 @@ jobs:
       run: |
         make test
     - name: Lint
-      if: matrix.python-version != '3.7'
+      if: matrix.version.python != '3.7'
       run: |
         make lint
     - name: Format
-      if: matrix.python-version != '3.7'
+      if: matrix.version.python != '3.7'
       run: |
         make format-check
     - name: Type annotations
-      if: matrix.python-version != '3.7'
+      if: matrix.version.python != '3.7'
       run: |
         make types
   mysql-connector-j:
@@ -49,7 +55,7 @@ jobs:
     - name: Set up Kerberos
       run: sudo apt-get install -y libkrb5-dev krb5-kdc krb5-admin-server
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
         cache: pip

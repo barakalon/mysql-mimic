@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import sys
-from collections.abc import Iterator
+from collections.abc import Iterator  # pylint: disable=import-error
 import random
 from typing import List, TypeVar, AsyncIterable, Iterable, AsyncIterator, cast
 import string
