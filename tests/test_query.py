@@ -779,6 +779,7 @@ async def test_describe_select(
             ],
         ),
         # Re-enable this test after sqlglot releases fix.
+        # PR with fix: https://github.com/tobymao/sqlglot/pull/4574
         # (
         #     "select database(), schema(), left(user(),instr(concat(user(),'@'), '@')-1)",
         #     [{"DATABASE()": None, "SCHEMA()": None, "_col_2": "levon_helm"}],
