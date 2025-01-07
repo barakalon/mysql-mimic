@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from enum import Enum
 import re
 from collections import defaultdict
 from itertools import chain
@@ -28,6 +27,7 @@ class Column:
     schema: Optional[str] = None
     catalog: Optional[str] = "def"
 
+
 def mapping_to_columns(schema: dict) -> List[Column]:
     """Convert a schema mapping into a list of Column instances.
 
@@ -46,7 +46,6 @@ def mapping_to_columns(schema: dict) -> List[Column]:
     }
     """
     depth = dict_depth(schema)
-
     if depth < 2:
         return []
     if depth == 2:
@@ -74,6 +73,7 @@ def mapping_to_columns(schema: dict) -> List[Column]:
                             catalog=catalog,
                         )
                     )
+
     return result
 
 
