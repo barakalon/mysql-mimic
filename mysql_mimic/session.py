@@ -526,7 +526,7 @@ class Session(BaseSession):
             current_user=self.username,
             variables=self.variables,
             database=self.database,
-            timestamp=self.timestamp
+            timestamp=self.timestamp,
         )
 
     def timezone(self) -> timezone_:

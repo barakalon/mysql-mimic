@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sqlglot import expressions as exp
 
-from mysql_mimic.intercept import value_to_expression, expression_to_value
+from mysql_mimic.intercept import value_to_expression
 from mysql_mimic.variables import Variables
 
 
@@ -15,13 +15,19 @@ class SessionContext:
     variables: Variables
     timestamp: datetime
 
-    def __init__(self, connection_id: int, current_user: str, variables: Variables, database: str,
-                 timestamp: datetime):
+    def __init__(
+        self,
+        connection_id: int,
+        current_user: str,
+        variables: Variables,
+        database: str,
+        timestamp: datetime,
+    ):
         self.connection_id = connection_id
-        self.external_user = variables.get('external_user')
+        self.external_user = variables.get("external_user")
         self.variables = variables
         self.current_user = current_user
-        self.version = variables.get('version')
+        self.version = variables.get("version")
         self.database = database
         self.timestamp = timestamp
 
