@@ -389,7 +389,7 @@ class Session(BaseSession):
 
     async def _replace_variables_middleware(self, q: Query) -> AllowedResult:
         """Replace session variables and information functions with their corresponding values"""
-        VariablesProcessor(self._session_context()).replace_variables(q)
+        VariablesProcessor(self._session_context()).replace_variables(q.expression)
         return await q.next()
 
     async def _static_query_middleware(self, q: Query) -> AllowedResult:
@@ -520,12 +520,12 @@ class Session(BaseSession):
     def _show_errors(self, show: exp.Show) -> AllowedResult:
         return [], ["Level", "Code", "Message"]
 
-    def _session_context(self):
+    def _session_context(self) -> SessionContext:
         return SessionContext(
             connection_id=self.connection.connection_id,
-            current_user=self.username,
+            current_user=str(self.username),
             variables=self.variables,
-            database=self.database,
+            database=str(self.database),
             timestamp=self.timestamp,
         )
 

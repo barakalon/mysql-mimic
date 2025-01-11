@@ -68,9 +68,9 @@ class VariablesProcessor:
             "CURRENT_DATE",
         }
 
-    def replace_variables(self, q):
-        if isinstance(q.expression, exp.Set):
-            for setitem in q.expression.expressions:
+    def replace_variables(self, expression: exp.Expression) -> None:
+        if isinstance(expression, exp.Set):
+            for setitem in expression.expressions:
                 if isinstance(setitem.this, exp.Binary):
                     # In the case of statements like: SET @@foo = @@bar
                     # We only want to replace variables on the right
@@ -79,7 +79,7 @@ class VariablesProcessor:
                         setitem.this.expression.transform(self._transform, copy=True),
                     )
         else:
-            q.expression.transform(self._transform, copy=False)
+            expression.transform(self._transform, copy=False)
 
     def _transform(self, node: exp.Expression) -> exp.Expression:
         new_node = None
