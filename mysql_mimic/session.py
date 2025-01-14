@@ -35,7 +35,6 @@ from mysql_mimic.constants import INFO_SCHEMA, KillKind
 from mysql_mimic.variable_processor import (
     SessionContext,
     VariableProcessor,
-    get_var_assignments,
 )
 from mysql_mimic.utils import find_dbs
 from mysql_mimic.variables import (
@@ -174,7 +173,6 @@ class Session(BaseSession):
         # These allow queries to be intercepted or wrapped.
         self.middlewares: list[Middleware] = [
             self._set_var_middleware,
-            self._replace_variables_middleware,
             self._set_middleware,
             self._static_query_middleware,
             self._use_middleware,
@@ -284,15 +282,8 @@ class Session(BaseSession):
 
     async def _set_var_middleware(self, q: Query) -> AllowedResult:
         """Handles any SET_VAR hints, which set system variables for a single statement"""
-        assignments = get_var_assignments(q.expression)
-        orig = {k: self.variables.get(k) for k in assignments}
-        try:
-            for k, v in assignments.items():
-                self.variables.set(k, v)
+        with VariableProcessor(self._session_context(), q.expression):
             return await q.next()
-        finally:
-            for k, v in orig.items():
-                self.variables.set(k, v)
 
     async def _use_middleware(self, q: Query) -> AllowedResult:
         """Intercept USE statements"""
@@ -367,11 +358,6 @@ class Session(BaseSession):
         """Intercept BEGIN statements"""
         if isinstance(q.expression, exp.Transaction):
             return [], []
-        return await q.next()
-
-    async def _replace_variables_middleware(self, q: Query) -> AllowedResult:
-        """Replace session variables and information functions with their corresponding values"""
-        VariableProcessor(self._session_context()).replace_variables(q.expression)
         return await q.next()
 
     async def _static_query_middleware(self, q: Query) -> AllowedResult:
