@@ -54,7 +54,7 @@ class VariableProcessor:
         self._expression = expression
 
         # Stores the original system variable values.
-        self._orig: dict[str, str] = {}
+        self._orig: Dict[str, str] = {}
 
         # Information functions.
         # These will be replaced in the AST with their corresponding values.
