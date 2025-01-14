@@ -32,7 +32,11 @@ from mysql_mimic.schema import (
     ensure_info_schema,
 )
 from mysql_mimic.constants import INFO_SCHEMA, KillKind
-from mysql_mimic.variables_processor import SessionContext, VariablesProcessor
+from mysql_mimic.variable_processor import (
+    SessionContext,
+    VariableProcessor,
+    get_var_assignments,
+)
 from mysql_mimic.utils import find_dbs
 from mysql_mimic.variables import (
     Variables,
@@ -280,29 +284,7 @@ class Session(BaseSession):
 
     async def _set_var_middleware(self, q: Query) -> AllowedResult:
         """Handles any SET_VAR hints, which set system variables for a single statement"""
-        hints = q.expression.find_all(exp.Hint)
-        if not hints:
-            return await q.next()
-
-        assignments = {}
-
-        # Iterate in reverse order so higher SET_VAR hints get priority
-        for hint in reversed(list(hints)):
-            set_var_hint = None
-
-            for e in hint.expressions:
-                if isinstance(e, exp.Func) and e.name == "SET_VAR":
-                    set_var_hint = e
-                    for eq in e.expressions:
-                        assignments[eq.left.name] = expression_to_value(eq.right)
-
-            if set_var_hint:
-                set_var_hint.pop()
-
-            # Remove the hint entirely if SET_VAR was the only expression
-            if not hint.expressions:
-                hint.pop()
-
+        assignments = get_var_assignments(q.expression)
         orig = {k: self.variables.get(k) for k in assignments}
         try:
             for k, v in assignments.items():
@@ -389,7 +371,7 @@ class Session(BaseSession):
 
     async def _replace_variables_middleware(self, q: Query) -> AllowedResult:
         """Replace session variables and information functions with their corresponding values"""
-        VariablesProcessor(self._session_context()).replace_variables(q.expression)
+        VariableProcessor(self._session_context()).replace_variables(q.expression)
         return await q.next()
 
     async def _static_query_middleware(self, q: Query) -> AllowedResult:
@@ -523,9 +505,11 @@ class Session(BaseSession):
     def _session_context(self) -> SessionContext:
         return SessionContext(
             connection_id=self.connection.connection_id,
-            current_user=str(self.username),
+            external_user=self.variables.get("external_user"),
+            current_user=self.username or "",
+            version=self.variables.get("version"),
             variables=self.variables,
-            database=str(self.database),
+            database=self.database or "",
             timestamp=self.timestamp,
         )
 
