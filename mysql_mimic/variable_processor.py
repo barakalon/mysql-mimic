@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict
 
-from mypy.ipc import TracebackType
 from sqlglot import expressions as exp
 
 from mysql_mimic.intercept import value_to_expression, expression_to_value
@@ -91,12 +90,7 @@ class VariableProcessor:
         self._replace_variables()
         return self._session.variables
 
-    def __exit__(
-        self,
-        exc_type: type[BaseException],
-        exc_val: BaseException,
-        exc_tb: TracebackType,
-    ) -> None:
+    def __exit__(self, *args: BaseException) -> None:
         for k, v in self._orig.items():
             self._session.variables.set(k, v)
 
