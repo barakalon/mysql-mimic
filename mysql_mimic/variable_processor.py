@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Dict
 
 from sqlglot import expressions as exp
 
@@ -39,8 +40,8 @@ variable_constants = {
 }
 
 
-def get_var_assignments(expression: exp.Expression) -> dict[str, str]:
-    """Handles any SET_VAR hints, which set system variables for a single statement"""
+def get_var_assignments(expression: exp.Expression) -> Dict[str, str]:
+    """Returns a dictionary of system variables to replace, as indicated by SET_VAR hints."""
     hints = expression.find_all(exp.Hint)
     if not hints:
         return {}
