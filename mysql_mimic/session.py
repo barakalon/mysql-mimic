@@ -20,6 +20,7 @@ from sqlglot.executor import execute
 
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.errors import ErrorCode, MysqlError
+from mysql_mimic.functions import Functions, MySQLDatetimeFunctions
 from mysql_mimic.intercept import (
     setitem_kind,
     expression_to_value,
@@ -32,10 +33,7 @@ from mysql_mimic.schema import (
     ensure_info_schema,
 )
 from mysql_mimic.constants import INFO_SCHEMA, KillKind
-from mysql_mimic.variable_processor import (
-    SessionContext,
-    VariableProcessor,
-)
+from mysql_mimic.variable_processor import VariableProcessor
 from mysql_mimic.utils import find_dbs
 from mysql_mimic.variables import (
     Variables,
@@ -51,6 +49,31 @@ if TYPE_CHECKING:
 
 
 Middleware = Callable[["Query"], Awaitable[AllowedResult]]
+
+
+class MySQLFunctions(Functions):
+    def __init__(self, session: Session):
+        # Information functions.
+        # These will be replaced in the AST with their corresponding values.
+        functions = {
+            "CONNECTION_ID": lambda: session.connection.connection_id,
+            "USER": lambda: session.variables.get("external_user"),
+            "CURRENT_USER": lambda: session.username,
+            "VERSION": lambda: session.variables.get("version"),
+            "DATABASE": lambda: session.database,
+        }
+        # Synonyms
+        functions.update(
+            {
+                "SYSTEM_USER": functions["USER"],
+                "SESSION_USER": functions["USER"],
+                "SCHEMA": functions["DATABASE"],
+            }
+        )
+        for key, value in MySQLDatetimeFunctions(session.timestamp).items():
+            functions.update({key: value})
+
+        super().__init__(functions)
 
 
 @dataclass
@@ -281,8 +304,10 @@ class Session(BaseSession):
         return await ensure_info_schema(await self.schema()).query(expression)
 
     async def _set_var_middleware(self, q: Query) -> AllowedResult:
-        """Handles any SET_VAR hints, which set system variables for a single statement"""
-        with VariableProcessor(self._session_context(), q.expression):
+        """Handles SET_VAR hints and replaces functions defined in the _functions mapping with their mapped values."""
+        with VariableProcessor(
+            MySQLFunctions(self), self.variables, q.expression
+        ).set_variables():
             return await q.next()
 
     async def _use_middleware(self, q: Query) -> AllowedResult:
@@ -487,17 +512,6 @@ class Session(BaseSession):
 
     def _show_errors(self, show: exp.Show) -> AllowedResult:
         return [], ["Level", "Code", "Message"]
-
-    def _session_context(self) -> SessionContext:
-        return SessionContext(
-            connection_id=self.connection.connection_id,
-            external_user=self.variables.get("external_user"),
-            current_user=self.username or "",
-            version=self.variables.get("version"),
-            variables=self.variables,
-            database=self.database or "",
-            timestamp=self.timestamp,
-        )
 
     def timezone(self) -> timezone_:
         tz = self.variables.get("time_zone")

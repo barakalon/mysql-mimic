@@ -1,36 +1,10 @@
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Dict
+from contextlib import contextmanager
+from typing import Dict, Mapping, Generator
 
 from sqlglot import expressions as exp
 
 from mysql_mimic.intercept import value_to_expression, expression_to_value
 from mysql_mimic.variables import Variables
-
-
-@dataclass
-class SessionContext:
-    """
-    Contains properties of the current session relevant to setting system variables.
-
-    Args:
-        connection_id: connection id for the session.
-        external_user: the username from the identity provider.
-        current_user: username of the authorized user.
-        version: MySQL version.
-        database: MySQL database name.
-        variables: dictionary of session variables.
-        timestamp: timestamp at the start of the current query.
-    """
-
-    connection_id: int
-    external_user: str
-    current_user: str
-    version: str
-    database: str
-    variables: Variables
-    timestamp: datetime
-
 
 variable_constants = {
     "CURRENT_USER",
@@ -44,58 +18,36 @@ class VariableProcessor:
     """
     This class modifies the query in two ways:
         1. Processing SET_VAR hints for system variables in the query text
-        2. Replacing certain MySQL functions with their internal representations based on the session context.
-    Once the context manager exits, any system variables modified within the query context are reset to their
+        2. Replacing functions in the query with their replacements defined in the functions argument.
     original values.
     """
 
-    def __init__(self, session: SessionContext, expression: exp.Expression):
-        self._session = session
+    def __init__(
+        self, functions: Mapping, variables: Variables, expression: exp.Expression
+    ):
         self._expression = expression
+        self._functions = functions
+        self._variables = variables
 
         # Stores the original system variable values.
         self._orig: Dict[str, str] = {}
 
-        # Information functions.
-        # These will be replaced in the AST with their corresponding values.
-        self._functions = {
-            "CONNECTION_ID": lambda: session.connection_id,
-            "USER": lambda: session.external_user,
-            "CURRENT_USER": lambda: session.current_user,
-            "VERSION": lambda: session.version,
-            "DATABASE": lambda: session.database,
-            "NOW": lambda: session.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            "CURDATE": lambda: session.timestamp.strftime("%Y-%m-%d"),
-            "CURTIME": lambda: session.timestamp.strftime("%H:%M:%S"),
-        }
-        # Synonyms
-        self._functions.update(
-            {
-                "SYSTEM_USER": self._functions["USER"],
-                "SESSION_USER": self._functions["USER"],
-                "SCHEMA": self._functions["DATABASE"],
-                "CURRENT_TIMESTAMP": self._functions["NOW"],
-                "LOCALTIME": self._functions["NOW"],
-                "LOCALTIMESTAMP": self._functions["NOW"],
-                "CURRENT_DATE": self._functions["CURDATE"],
-                "CURRENT_TIME": self._functions["CURTIME"],
-            }
-        )
-
-    def __enter__(self) -> Variables:
+    @contextmanager
+    def set_variables(self) -> Generator[exp.Expression, None, None]:
         assignments = self._get_var_assignments()
-        self._orig = {k: self._session.variables.get(k) for k in assignments}
+        self._orig = {k: self._variables.get(k) for k in assignments}
         for k, v in assignments.items():
-            self._session.variables.set(k, v)
-        self._replace_variables()
-        return self._session.variables
+            self._variables.set(k, v)
 
-    def __exit__(self, *args: BaseException) -> None:
+        self._replace_variables()
+
+        yield self._expression
+
         for k, v in self._orig.items():
-            self._session.variables.set(k, v)
+            self._variables.set(k, v)
 
     def _get_var_assignments(self) -> Dict[str, str]:
-        """Returns a dictionary of system variables to replace, as indicated by SET_VAR hints."""
+        """Returns a dictionary of session variables to replace, as indicated by SET_VAR hints."""
         hints = self._expression.find_all(exp.Hint)
         if not hints:
             return {}
@@ -122,7 +74,9 @@ class VariableProcessor:
         return assignments
 
     def _replace_variables(self) -> None:
-        """Replaces certain system variables with information provided from the session context."""
+        """Replaces certain functions in the query with literals provided from the mapping in _functions,
+        and session parameters with the values of the session variables.
+        """
         if isinstance(self._expression, exp.Set):
             for setitem in self._expression.expressions:
                 if isinstance(setitem.this, exp.Binary):
@@ -151,7 +105,7 @@ class VariableProcessor:
             value = self._functions[node.sql()]()
             new_node = value_to_expression(value)
         elif isinstance(node, exp.SessionParameter):
-            value = self._session.variables.get(node.name)
+            value = self._variables.get(node.name)
             new_node = value_to_expression(value)
 
         if (
