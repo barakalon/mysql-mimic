@@ -20,9 +20,9 @@ from sqlglot.executor import execute
 
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.errors import ErrorCode, MysqlError
+from mysql_mimic.functions import Functions, mysql_datetime_function_mapping
 from mysql_mimic.intercept import (
     setitem_kind,
-    value_to_expression,
     expression_to_value,
     TRANSACTION_CHARACTERISTICS,
 )
@@ -33,6 +33,7 @@ from mysql_mimic.schema import (
     ensure_info_schema,
 )
 from mysql_mimic.constants import INFO_SCHEMA, KillKind
+from mysql_mimic.variable_processor import VariableProcessor
 from mysql_mimic.utils import find_dbs
 from mysql_mimic.variables import (
     Variables,
@@ -48,6 +49,28 @@ if TYPE_CHECKING:
 
 
 Middleware = Callable[["Query"], Awaitable[AllowedResult]]
+
+
+def mysql_function_mapping(session: Session) -> Functions:
+    # Information functions.
+    # These will be replaced in the AST with their corresponding values.
+    functions = {
+        **mysql_datetime_function_mapping(session.timestamp),
+        "CONNECTION_ID": lambda: session.connection.connection_id,
+        "USER": lambda: session.variables.get("external_user"),
+        "CURRENT_USER": lambda: session.username,
+        "VERSION": lambda: session.variables.get("version"),
+        "DATABASE": lambda: session.database,
+    }
+    # Synonyms
+    functions.update(
+        {
+            "SYSTEM_USER": functions["USER"],
+            "SESSION_USER": functions["USER"],
+            "SCHEMA": functions["DATABASE"],
+        }
+    )
+    return functions
 
 
 @dataclass
@@ -170,7 +193,6 @@ class Session(BaseSession):
         # These allow queries to be intercepted or wrapped.
         self.middlewares: list[Middleware] = [
             self._set_var_middleware,
-            self._replace_variables_middleware,
             self._set_middleware,
             self._static_query_middleware,
             self._use_middleware,
@@ -182,38 +204,6 @@ class Session(BaseSession):
             self._rollback_middleware,
             self._info_schema_middleware,
         ]
-
-        # Information functions.
-        # These will be replaced in the AST with their corresponding values.
-        self._functions = {
-            "CONNECTION_ID": lambda: self.connection.connection_id,
-            "USER": lambda: self.variables.get("external_user"),
-            "CURRENT_USER": lambda: self.username,
-            "VERSION": lambda: self.variables.get("version"),
-            "DATABASE": lambda: self.database,
-            "NOW": lambda: self.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            "CURDATE": lambda: self.timestamp.strftime("%Y-%m-%d"),
-            "CURTIME": lambda: self.timestamp.strftime("%H:%M:%S"),
-        }
-        # Synonyms
-        self._functions.update(
-            {
-                "SYSTEM_USER": self._functions["USER"],
-                "SESSION_USER": self._functions["USER"],
-                "SCHEMA": self._functions["DATABASE"],
-                "CURRENT_TIMESTAMP": self._functions["NOW"],
-                "LOCALTIME": self._functions["NOW"],
-                "LOCALTIMESTAMP": self._functions["NOW"],
-                "CURRENT_DATE": self._functions["CURDATE"],
-                "CURRENT_TIME": self._functions["CURTIME"],
-            }
-        )
-        self._constants = {
-            "CURRENT_USER",
-            "CURRENT_TIME",
-            "CURRENT_TIMESTAMP",
-            "CURRENT_DATE",
-        }
 
         # Current database
         self.database = None
@@ -311,38 +301,11 @@ class Session(BaseSession):
         return await ensure_info_schema(await self.schema()).query(expression)
 
     async def _set_var_middleware(self, q: Query) -> AllowedResult:
-        """Handles any SET_VAR hints, which set system variables for a single statement"""
-        hints = q.expression.find_all(exp.Hint)
-        if not hints:
+        """Handles SET_VAR hints and replaces functions defined in the _functions mapping with their mapped values."""
+        with VariableProcessor(
+            mysql_function_mapping(self), self.variables, q.expression
+        ).set_variables():
             return await q.next()
-
-        assignments = {}
-
-        # Iterate in reverse order so higher SET_VAR hints get priority
-        for hint in reversed(list(hints)):
-            set_var_hint = None
-
-            for e in hint.expressions:
-                if isinstance(e, exp.Func) and e.name == "SET_VAR":
-                    set_var_hint = e
-                    for eq in e.expressions:
-                        assignments[eq.left.name] = expression_to_value(eq.right)
-
-            if set_var_hint:
-                set_var_hint.pop()
-
-            # Remove the hint entirely if SET_VAR was the only expression
-            if not hint.expressions:
-                hint.pop()
-
-        orig = {k: self.variables.get(k) for k in assignments}
-        try:
-            for k, v in assignments.items():
-                self.variables.set(k, v)
-            return await q.next()
-        finally:
-            for k, v in orig.items():
-                self.variables.set(k, v)
 
     async def _use_middleware(self, q: Query) -> AllowedResult:
         """Intercept USE statements"""
@@ -417,51 +380,6 @@ class Session(BaseSession):
         """Intercept BEGIN statements"""
         if isinstance(q.expression, exp.Transaction):
             return [], []
-        return await q.next()
-
-    async def _replace_variables_middleware(self, q: Query) -> AllowedResult:
-        """Replace session variables and information functions with their corresponding values"""
-
-        def _transform(node: exp.Expression) -> exp.Expression:
-            new_node = None
-
-            if isinstance(node, exp.Func):
-                if isinstance(node, exp.Anonymous):
-                    func_name = node.name.upper()
-                else:
-                    func_name = node.sql_name()
-                func = self._functions.get(func_name)
-                if func:
-                    value = func()
-                    new_node = value_to_expression(value)
-            elif isinstance(node, exp.Column) and node.sql() in self._constants:
-                value = self._functions[node.sql()]()
-                new_node = value_to_expression(value)
-            elif isinstance(node, exp.SessionParameter):
-                value = self.variables.get(node.name)
-                new_node = value_to_expression(value)
-
-            if (
-                new_node
-                and isinstance(node.parent, exp.Select)
-                and node.arg_key == "expressions"
-            ):
-                new_node = exp.alias_(new_node, exp.to_identifier(node.sql()))
-
-            return new_node or node
-
-        if isinstance(q.expression, exp.Set):
-            for setitem in q.expression.expressions:
-                if isinstance(setitem.this, exp.Binary):
-                    # In the case of statements like: SET @@foo = @@bar
-                    # We only want to replace variables on the right
-                    setitem.this.set(
-                        "expression",
-                        setitem.this.expression.transform(_transform, copy=True),
-                    )
-        else:
-            q.expression.transform(_transform, copy=False)
-
         return await q.next()
 
     async def _static_query_middleware(self, q: Query) -> AllowedResult:
