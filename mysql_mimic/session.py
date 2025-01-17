@@ -187,7 +187,6 @@ class Session(BaseSession):
     dialect: Type[Dialect] = MySQL
 
     def __init__(self, variables: Variables | None = None):
-        self._variable_processor: VariableProcessor
         self.variables = variables or SessionVariables(GlobalVariables())
 
         # Query middlewares.
@@ -278,9 +277,6 @@ class Session(BaseSession):
 
     async def handle_query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
         self.timestamp = datetime.now(tz=self.timezone())
-        self._variable_processor = VariableProcessor(
-            mysql_function_mapping(self), self.variables
-        )
         result = None
         for expression in self._parse(sql):
             if not expression:
@@ -306,7 +302,9 @@ class Session(BaseSession):
 
     async def _set_var_middleware(self, q: Query) -> AllowedResult:
         """Handles SET_VAR hints and replaces functions defined in the _functions mapping with their mapped values."""
-        with self._variable_processor.set_variables(q.expression):
+        with VariableProcessor(
+            mysql_function_mapping(self), self.variables, q.expression
+        ).set_variables():
             return await q.next()
 
     async def _use_middleware(self, q: Query) -> AllowedResult:
