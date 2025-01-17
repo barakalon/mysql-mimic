@@ -20,7 +20,7 @@ from sqlglot.executor import execute
 
 from mysql_mimic.charset import CharacterSet
 from mysql_mimic.errors import ErrorCode, MysqlError
-from mysql_mimic.functions import Functions, MySQLDatetimeFunctions
+from mysql_mimic.functions import Functions, mysql_datetime_function_mapping
 from mysql_mimic.intercept import (
     setitem_kind,
     expression_to_value,
@@ -51,29 +51,26 @@ if TYPE_CHECKING:
 Middleware = Callable[["Query"], Awaitable[AllowedResult]]
 
 
-class MySQLFunctions(Functions):
-    def __init__(self, session: Session):
-        # Information functions.
-        # These will be replaced in the AST with their corresponding values.
-        functions = {
-            "CONNECTION_ID": lambda: session.connection.connection_id,
-            "USER": lambda: session.variables.get("external_user"),
-            "CURRENT_USER": lambda: session.username,
-            "VERSION": lambda: session.variables.get("version"),
-            "DATABASE": lambda: session.database,
+def mysql_function_mapping(session: Session) -> Functions:
+    # Information functions.
+    # These will be replaced in the AST with their corresponding values.
+    functions = {
+        **mysql_datetime_function_mapping(session.timestamp),
+        "CONNECTION_ID": lambda: session.connection.connection_id,
+        "USER": lambda: session.variables.get("external_user"),
+        "CURRENT_USER": lambda: session.username,
+        "VERSION": lambda: session.variables.get("version"),
+        "DATABASE": lambda: session.database,
+    }
+    # Synonyms
+    functions.update(
+        {
+            "SYSTEM_USER": functions["USER"],
+            "SESSION_USER": functions["USER"],
+            "SCHEMA": functions["DATABASE"],
         }
-        # Synonyms
-        functions.update(
-            {
-                "SYSTEM_USER": functions["USER"],
-                "SESSION_USER": functions["USER"],
-                "SCHEMA": functions["DATABASE"],
-            }
-        )
-        for key, value in MySQLDatetimeFunctions(session.timestamp).items():
-            functions.update({key: value})
-
-        super().__init__(functions)
+    )
+    return functions
 
 
 @dataclass
@@ -190,6 +187,7 @@ class Session(BaseSession):
     dialect: Type[Dialect] = MySQL
 
     def __init__(self, variables: Variables | None = None):
+        self._variable_processor: VariableProcessor
         self.variables = variables or SessionVariables(GlobalVariables())
 
         # Query middlewares.
@@ -280,6 +278,9 @@ class Session(BaseSession):
 
     async def handle_query(self, sql: str, attrs: Dict[str, str]) -> AllowedResult:
         self.timestamp = datetime.now(tz=self.timezone())
+        self._variable_processor = VariableProcessor(
+            mysql_function_mapping(self), self.variables
+        )
         result = None
         for expression in self._parse(sql):
             if not expression:
@@ -305,9 +306,7 @@ class Session(BaseSession):
 
     async def _set_var_middleware(self, q: Query) -> AllowedResult:
         """Handles SET_VAR hints and replaces functions defined in the _functions mapping with their mapped values."""
-        with VariableProcessor(
-            MySQLFunctions(self), self.variables, q.expression
-        ).set_variables():
+        with self._variable_processor.set_variables(q.expression):
             return await q.next()
 
     async def _use_middleware(self, q: Query) -> AllowedResult:

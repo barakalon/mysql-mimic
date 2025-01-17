@@ -14,6 +14,34 @@ variable_constants = {
 }
 
 
+def _get_var_assignments(expression: exp.Expression) -> Dict[str, str]:
+    """Returns a dictionary of session variables to replace, as indicated by SET_VAR hints."""
+    hints = expression.find_all(exp.Hint)
+    if not hints:
+        return {}
+
+    assignments = {}
+
+    # Iterate in reverse order so higher SET_VAR hints get priority
+    for hint in reversed(list(hints)):
+        set_var_hint = None
+
+        for e in hint.expressions:
+            if isinstance(e, exp.Func) and e.name == "SET_VAR":
+                set_var_hint = e
+                for eq in e.expressions:
+                    assignments[eq.left.name] = expression_to_value(eq.right)
+
+        if set_var_hint:
+            set_var_hint.pop()
+
+        # Remove the hint entirely if SET_VAR was the only expression
+        if not hint.expressions:
+            hint.pop()
+
+    return assignments
+
+
 class VariableProcessor:
     """
     This class modifies the query in two ways:
@@ -22,10 +50,7 @@ class VariableProcessor:
     original values.
     """
 
-    def __init__(
-        self, functions: Mapping, variables: Variables, expression: exp.Expression
-    ):
-        self._expression = expression
+    def __init__(self, functions: Mapping, variables: Variables):
         self._functions = functions
         self._variables = variables
 
@@ -33,52 +58,27 @@ class VariableProcessor:
         self._orig: Dict[str, str] = {}
 
     @contextmanager
-    def set_variables(self) -> Generator[exp.Expression, None, None]:
-        assignments = self._get_var_assignments()
+    def set_variables(
+        self, expression: exp.Expression
+    ) -> Generator[exp.Expression, None, None]:
+        assignments = _get_var_assignments(expression)
         self._orig = {k: self._variables.get(k) for k in assignments}
         for k, v in assignments.items():
             self._variables.set(k, v)
 
-        self._replace_variables()
+        self._replace_variables(expression)
 
-        yield self._expression
+        yield expression
 
         for k, v in self._orig.items():
             self._variables.set(k, v)
 
-    def _get_var_assignments(self) -> Dict[str, str]:
-        """Returns a dictionary of session variables to replace, as indicated by SET_VAR hints."""
-        hints = self._expression.find_all(exp.Hint)
-        if not hints:
-            return {}
-
-        assignments = {}
-
-        # Iterate in reverse order so higher SET_VAR hints get priority
-        for hint in reversed(list(hints)):
-            set_var_hint = None
-
-            for e in hint.expressions:
-                if isinstance(e, exp.Func) and e.name == "SET_VAR":
-                    set_var_hint = e
-                    for eq in e.expressions:
-                        assignments[eq.left.name] = expression_to_value(eq.right)
-
-            if set_var_hint:
-                set_var_hint.pop()
-
-            # Remove the hint entirely if SET_VAR was the only expression
-            if not hint.expressions:
-                hint.pop()
-
-        return assignments
-
-    def _replace_variables(self) -> None:
+    def _replace_variables(self, expression: exp.Expression) -> None:
         """Replaces certain functions in the query with literals provided from the mapping in _functions,
         and session parameters with the values of the session variables.
         """
-        if isinstance(self._expression, exp.Set):
-            for setitem in self._expression.expressions:
+        if isinstance(expression, exp.Set):
+            for setitem in expression.expressions:
                 if isinstance(setitem.this, exp.Binary):
                     # In the case of statements like: SET @@foo = @@bar
                     # We only want to replace variables on the right
@@ -87,7 +87,7 @@ class VariableProcessor:
                         setitem.this.expression.transform(self._transform, copy=True),
                     )
         else:
-            self._expression.transform(self._transform, copy=False)
+            expression.transform(self._transform, copy=False)
 
     def _transform(self, node: exp.Expression) -> exp.Expression:
         new_node = None
