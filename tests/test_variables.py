@@ -1,4 +1,5 @@
 from datetime import timezone, timedelta
+from typing import Dict
 
 import pytest
 
@@ -13,7 +14,7 @@ from mysql_mimic.variables import (
 class TestVars(Variables):
 
     @property
-    def schema(self) -> dict[str, VariableSchema]:
+    def schema(self) -> Dict[str, VariableSchema]:
         return {"foo": (str, "bar", True)}
 
 
