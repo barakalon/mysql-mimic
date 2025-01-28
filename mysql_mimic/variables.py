@@ -4,7 +4,7 @@ import abc
 import re
 from datetime import timezone, timedelta
 from functools import lru_cache
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Tuple, Iterator, MutableMapping
 
 from mysql_mimic.charset import CharacterSet, Collation
 from mysql_mimic.errors import MysqlError, ErrorCode
@@ -57,14 +57,29 @@ SYSTEM_VARIABLES: dict[str, VariableSchema] = {
 }
 
 
-class Variables(abc.ABC):
+class Variables(abc.ABC, MutableMapping[str, Any]):
     """
     Abstract class for MySQL system variables.
     """
 
     def __init__(self) -> None:
         # Current variable values
-        self.values: dict[str, Any] = {}
+        self._values: dict[str, Any] = {}
+
+    def __getitem__(self, key: str) -> Any | None:
+        return self._get_variable(key)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        return self.set(key, value)
+
+    def __delitem__(self, key: str) -> None:
+        raise MysqlError(f"Cannot delete session variable {key}.")
+
+    def __iter__(self) -> Iterator[str]:
+        return self._values.__iter__()
+
+    def __len__(self) -> int:
+        return len(self._values)
 
     def get_schema(self, name: str) -> VariableSchema:
         schema = self.schema.get(name)
@@ -84,19 +99,19 @@ class Variables(abc.ABC):
             )
 
         if value is DEFAULT or value is None:
-            self.values[name] = default
+            self._values[name] = default
         else:
-            self.values[name] = type_(value)
+            self._values[name] = type_(value)
 
-    def get(self, name: str) -> Any:
+    def _get_variable(self, name: str) -> Any | None:
         name = name.lower()
-        if name in self.values:
-            return self.values[name]
+        if name in self._values:
+            return self._values[name]
         _, default, _ = self.get_schema(name)
 
         return default
 
-    def list(self) -> list[tuple[str, str]]:
+    def list(self) -> list[tuple[str, Any]]:
         return [(name, self.get(name)) for name in sorted(self.schema)]
 
     @property
