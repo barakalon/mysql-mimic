@@ -67,7 +67,12 @@ class Variables(abc.ABC, MutableMapping[str, Any]):
         self._values: dict[str, Any] = {}
 
     def __getitem__(self, key: str) -> Any | None:
-        return self._get_variable(key)
+        key = key.lower()
+        if key in self._values:
+            return self._values[key]
+        _, default, _ = self.get_schema(key)
+
+        return default
 
     def __setitem__(self, key: str, value: Any) -> None:
         return self.set(key, value)
@@ -102,14 +107,6 @@ class Variables(abc.ABC, MutableMapping[str, Any]):
             self._values[name] = default
         else:
             self._values[name] = type_(value)
-
-    def _get_variable(self, name: str) -> Any | None:
-        name = name.lower()
-        if name in self._values:
-            return self._values[name]
-        _, default, _ = self.get_schema(name)
-
-        return default
 
     def list(self) -> list[tuple[str, Any]]:
         return [(name, self.get(name)) for name in sorted(self.schema)]
