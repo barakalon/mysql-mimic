@@ -1,10 +1,9 @@
 from contextlib import contextmanager
-from typing import Dict, Mapping, Generator
+from typing import Dict, Mapping, Generator, MutableMapping, Any
 
 from sqlglot import expressions as exp
 
 from mysql_mimic.intercept import value_to_expression, expression_to_value
-from mysql_mimic.variables import Variables
 
 variable_constants = {
     "CURRENT_USER",
@@ -51,28 +50,28 @@ class VariableProcessor:
     """
 
     def __init__(
-        self, functions: Mapping, variables: Variables, expression: exp.Expression
+        self, functions: Mapping, variables: MutableMapping, expression: exp.Expression
     ):
         self._functions = functions
         self._variables = variables
         self._expression = expression
 
         # Stores the original system variable values.
-        self._orig: Dict[str, str] = {}
+        self._orig: Dict[str, Any] = {}
 
     @contextmanager
     def set_variables(self) -> Generator[exp.Expression, None, None]:
         assignments = _get_var_assignments(self._expression)
         self._orig = {k: self._variables.get(k) for k in assignments}
         for k, v in assignments.items():
-            self._variables.set(k, v)
+            self._variables[k] = v
 
         self._replace_variables()
 
         yield self._expression
 
         for k, v in self._orig.items():
-            self._variables.set(k, v)
+            self._variables[k] = v
 
     def _replace_variables(self) -> None:
         """Replaces certain functions in the query with literals provided from the mapping in _functions,

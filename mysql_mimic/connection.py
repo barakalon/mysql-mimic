@@ -77,11 +77,11 @@ class Connection:
 
     @property
     def server_charset(self) -> CharacterSet:
-        return CharacterSet[self.session.variables.get("character_set_results")]
+        return CharacterSet[str(self.session.variables.get("character_set_results"))]
 
     @property
     def client_charset(self) -> CharacterSet:
-        return CharacterSet[self.session.variables.get("character_set_client")]
+        return CharacterSet[str(self.session.variables.get("character_set_client"))]
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._start())
@@ -131,7 +131,7 @@ class Connection:
         handshake_v10 = packets.make_handshake_v10(
             capabilities=self.server_capabilities,
             server_charset=self.server_charset,
-            server_version=self.session.variables.get("version"),
+            server_version=str(self.session.variables.get("version")),
             connection_id=self.connection_id,
             auth_data=auth_data,
             status_flags=self.status_flags,

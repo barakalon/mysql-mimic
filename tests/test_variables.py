@@ -1,9 +1,21 @@
 from datetime import timezone, timedelta
+from typing import Dict
 
 import pytest
 
 from mysql_mimic.errors import MysqlError
-from mysql_mimic.variables import parse_timezone
+from mysql_mimic.variables import (
+    parse_timezone,
+    Variables,
+    VariableSchema,
+)
+
+
+class TestVars(Variables):
+
+    @property
+    def schema(self) -> Dict[str, VariableSchema]:
+        return {"foo": (str, "bar", True)}
 
 
 def test_parse_timezone() -> None:
@@ -17,3 +29,20 @@ def test_parse_timezone() -> None:
 
     with pytest.raises(MysqlError):
         parse_timezone("whoops")
+
+
+def test_variable_mapping() -> None:
+    test_vars = TestVars()
+
+    assert test_vars.get_variable("foo") == "bar"
+    assert test_vars["foo"] == "bar"
+
+    test_vars["foo"] = "hello"
+    assert test_vars.get_variable("foo") == "hello"
+    assert test_vars["foo"] == "hello"
+
+    with pytest.raises(KeyError):
+        assert test_vars["world"]
+
+    with pytest.raises(MysqlError):
+        test_vars["world"] = "hello"
