@@ -79,7 +79,7 @@ class Variables(abc.ABC, MutableMapping[str, Any]):
         raise MysqlError(f"Cannot delete session variable {key}.")
 
     def __iter__(self) -> Iterator[str]:
-        return self._values.__iter__()
+        return self.schema.__iter__()
 
     def __len__(self) -> int:
         return len(self.schema)
