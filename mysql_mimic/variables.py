@@ -82,7 +82,7 @@ class Variables(abc.ABC, MutableMapping[str, Any]):
         return self._values.__iter__()
 
     def __len__(self) -> int:
-        return len(self._values)
+        return len(self.schema)
 
     def get_schema(self, name: str) -> VariableSchema:
         schema = self.schema.get(name)

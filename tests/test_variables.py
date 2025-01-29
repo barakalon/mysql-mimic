@@ -33,6 +33,7 @@ def test_parse_timezone() -> None:
 
 def test_variable_mapping() -> None:
     test_vars = TestVars()
+    assert test_vars
 
     assert test_vars.get_variable("foo") == "bar"
     assert test_vars["foo"] == "bar"
