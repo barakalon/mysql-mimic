@@ -205,7 +205,7 @@ class Connection:
         auth_state: Optional[AuthState] = None,
         server_plugin: Optional[AuthPlugin] = None,
     ) -> None:
-        user = await self.identity_provider.get_user(username)
+        user = await self.identity_provider.get_user(username, connect_attrs)
 
         if not user:
             await self.stream.write(

@@ -246,7 +246,7 @@ class IdentityProvider:
     def get_plugins(self) -> Sequence[AuthPlugin]:
         return [NativePasswordAuthPlugin(), NoLoginAuthPlugin()]
 
-    async def get_user(self, username: str) -> Optional[User]:
+    async def get_user(self, username: str, connect_attrs: Dict[str, str]) -> Optional[User]:
         return None
 
     def get_default_plugin(self) -> AuthPlugin:
@@ -264,5 +264,5 @@ class SimpleIdentityProvider(IdentityProvider):
     Simple identity provider implementation that naively accepts whatever username a client provides.
     """
 
-    async def get_user(self, username: str) -> Optional[User]:
+    async def get_user(self, username: str, connect_attrs: Dict[str, str]) -> Optional[User]:
         return User(name=username, auth_plugin=NativePasswordAuthPlugin.name)
