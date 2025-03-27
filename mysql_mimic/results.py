@@ -104,9 +104,9 @@ async def _ensure_result_cols(
     columns: Sequence[AllowedColumn],
 ) -> ResultSet:
     # Which columns need to be inferred?
-    remaining = {
-        col: i for i, col in enumerate(columns) if not isinstance(col, ResultColumn)
-    }
+    remaining = [
+        (col, i) for i, col in enumerate(columns) if not isinstance(col, ResultColumn)
+    ]
 
     if not remaining:
         return ResultSet(
@@ -132,7 +132,7 @@ async def _ensure_result_cols(
         peeks.append(peek)
 
         inferred = []
-        for name, i in remaining.items():
+        for name, i in remaining:
             value = peek[i]
             if value is not None:
                 type_ = infer_type(value)
@@ -140,13 +140,13 @@ async def _ensure_result_cols(
                     name=str(name),
                     type=type_,
                 )
-                inferred.append(name)
+                inferred.append((name, i))
 
-        for name in inferred:
-            remaining.pop(name)
+        for name, i in inferred:
+            remaining.remove((name, i))
 
     # If we failed to find a non-null value, set the type to NULL
-    for name, i in remaining.items():
+    for name, i in remaining:
         columns[i] = ResultColumn(
             name=str(name),
             type=ColumnType.NULL,
