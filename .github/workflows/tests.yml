@@ -36,11 +36,11 @@ jobs:
       run: |
         make test
     - name: Format
-      if: matrix.version.python >= '3.10'
+      if: matrix.version.python == '3.12'
       run: |
         make format-check
     - name: Type annotations
-      if: matrix.version.python >= '3.10'
+      if: matrix.version.python == '3.12'
       run: |
         make types
   mysql-connector-j:
