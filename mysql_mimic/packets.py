@@ -385,17 +385,38 @@ def make_column_definition_41(
 def make_text_resultset_row(
     row: Sequence[Any], columns: Sequence[ResultColumn]
 ) -> bytes:
-    parts: List[bytes] = []
+    buf = bytearray()
 
     for i in range(len(columns)):
         value = row[i]
         if value is None:
-            parts.append(b"\xfb")
-        else:
-            text = columns[i].text_encode(value)
-            parts.append(str_len(text))
+            buf.append(0xFB)
+            continue
 
-    return b"".join(parts)
+        col = columns[i]
+        if col.use_default_text_encoder:
+            # Inline _text_encode_str: str(val).encode(codec)
+            if isinstance(value, str):
+                encoded = value.encode(col.codec)
+            elif isinstance(value, bytes):
+                encoded = value
+            else:
+                encoded = str(value).encode(col.codec)
+        elif col.type == ColumnType.TINY:
+            # Inline _text_encode_tiny: str(int(val)).encode(codec)
+            encoded = str(int(value)).encode(col.codec)
+        else:
+            encoded = col.text_encoder(col, value)
+
+        # Inline uint_len + extend (fast path for < 251 bytes)
+        n = len(encoded)
+        if n < 251:
+            buf.append(n)
+        else:
+            buf.extend(uint_len(n))
+        buf.extend(encoded)
+
+    return bytes(buf)
 
 
 def make_com_stmt_prepare_ok(statement: PreparedStatement) -> bytes:

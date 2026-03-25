@@ -49,9 +49,13 @@ class ResultColumn:
         self.type = type
         self.character_set = character_set
         self.codec = character_set.codec
-        self.text_encoder = text_encoder or _TEXT_ENCODERS.get(type) or _unsupported
+        default_text = _TEXT_ENCODERS.get(type) or _unsupported
+        self.text_encoder = text_encoder or default_text
         self.binary_encoder = (
             binary_encoder or _BINARY_ENCODERS.get(type) or _unsupported
+        )
+        self.use_default_text_encoder = (
+            text_encoder is None and default_text is _text_encode_str
         )
 
     def text_encode(self, val: Any) -> bytes:
