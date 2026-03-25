@@ -1,6 +1,6 @@
 import asyncio
 import struct
-from typing import Any, List, Sequence, Tuple
+from typing import Any, Sequence
 from ssl import SSLContext
 
 from mysql_mimic.errors import MysqlError, ErrorCode
@@ -90,7 +90,7 @@ class MysqlStream:
             buf.extend(data)
 
     def write_text_rows(
-        self, rows: List[Sequence[Any]], columns: List[ResultColumn]
+        self, rows: Sequence[Sequence[Any]], columns: Sequence[ResultColumn]
     ) -> int:
         """Serialize and frame text result rows directly into the buffer.
 

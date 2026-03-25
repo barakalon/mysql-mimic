@@ -648,12 +648,7 @@ class Connection:
         # Write rows
         cols = result_set.columns
         if isinstance(result_set.rows, (list, tuple)):
-            rows = (
-                result_set.rows
-                if isinstance(result_set.rows, list)
-                else list(result_set.rows)
-            )
-            affected_rows = self.stream.write_text_rows(rows, list(cols))
+            affected_rows = self.stream.write_text_rows(result_set.rows, cols)
         else:
             affected_rows = 0
             batch = []
@@ -670,30 +665,6 @@ class Connection:
             self.ok_or_eof(affected_rows=affected_rows), drain=False
         )
         await self.stream.drain()
-
-    async def text_resultset(self, result_set: ResultSet) -> AsyncIterator[bytes]:
-        yield packets.make_column_count(
-            capabilities=self.capabilities, column_count=len(result_set.columns)
-        )
-
-        for column in result_set.columns:
-            yield packets.make_column_definition_41(
-                server_charset=self.server_charset,
-                name=column.name,
-                column_type=column.type,
-                character_set=column.character_set,
-            )
-
-        if not self.deprecate_eof():
-            yield self.eof()
-
-        affected_rows = 0
-
-        async for row in cooperative_iterate(aiterate(result_set.rows)):
-            affected_rows += 1
-            yield packets.make_text_resultset_row(row, result_set.columns)
-
-        yield self.ok_or_eof(affected_rows=affected_rows)
 
     def com_stmt_prepare_response(
         self, statement: PreparedStatement
