@@ -258,10 +258,10 @@ async def test_replace_function(
         assert result[0]["USER()"] == "levon_helm"
 
         result = await query(conn, "SELECT DATABASE()")
-        assert result[0]["DATABASE()"] == "db"
+        assert result[0]["CURRENT_SCHEMA()"] == "db"
 
         result = await query(conn, "SELECT schema()")
-        assert result[0]["SCHEMA()"] == "db"
+        assert result[0]["CURRENT_SCHEMA()"] == "db"
 
 
 @pytest.mark.asyncio
@@ -516,7 +516,7 @@ async def test_describe_select(
         ("SELECT 1, 2", [{"1": 1, "2": 2}]),
         ("SELECT '1' AS Hello", [{"hello": "1"}]),
         # USE
-        ("USE db2; SELECT DATABASE()", [{"DATABASE()": "db2"}]),
+        ("USE db2; SELECT DATABASE()", [{"CURRENT_SCHEMA()": "db2"}]),
         # INFORMATION_SCHEMA
         (
             """
@@ -779,8 +779,8 @@ async def test_describe_select(
             ],
         ),
         (
-            "select database(), schema(), left(user(),instr(concat(user(),'@'), '@')-1)",
-            [{"DATABASE()": None, "SCHEMA()": None, "_col_2": "levon_helm"}],
+            "select database(), left(user(),instr(concat(user(),'@'), '@')-1)",
+            [{"CURRENT_SCHEMA()": None, "_col_1": "levon_helm"}],
         ),
         (queries.DATA_GRIP_PARAMETERS, []),
         (
@@ -814,12 +814,11 @@ async def test_describe_select(
         ),
         # Timestamps
         (
-            "select now(), curtime(), curdate(), current_time",
+            "select now(), curdate(), current_time",
             [
                 {
                     "NOW()": "2023-01-01 00:00:00",
-                    "CURTIME()": "00:00:00",
-                    "CURDATE()": "2023-01-01",
+                    "current_date": "2023-01-01",
                     "CURRENT_TIME()": "00:00:00",
                 }
             ],

@@ -68,6 +68,8 @@ def mysql_function_mapping(session: Session) -> Functions:
             "SYSTEM_USER": functions["USER"],
             "SESSION_USER": functions["USER"],
             "SCHEMA": functions["DATABASE"],
+            "CURRENT_SCHEMA": functions["DATABASE"],
+            "CURRENT_VERSION": functions["VERSION"],
         }
     )
     return functions
