@@ -100,7 +100,9 @@ def dict_depth(d: dict) -> int:
         return 1
 
 
-async def chain_async(sync_items: Iterable[T], async_items: AsyncIterable[T]) -> AsyncIterator[T]:
+async def chain_async(
+    sync_items: Iterable[T], async_items: AsyncIterable[T]
+) -> AsyncIterator[T]:
     """Chain a sync iterable followed by an async iterable into a single async iterator."""
     for item in sync_items:
         yield item

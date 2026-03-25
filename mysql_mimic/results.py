@@ -162,7 +162,9 @@ async def _ensure_result_cols(
     if isinstance(rows, (list, tuple)):
         # For sync sequences, return the original data as-is (peeks came from it)
         return ResultSet(rows=rows, columns=cast(Sequence[ResultColumn], columns))
-    return ResultSet(rows=chain_async(peeks, arows), columns=cast(Sequence[ResultColumn], columns))
+    return ResultSet(
+        rows=chain_async(peeks, arows), columns=cast(Sequence[ResultColumn], columns)
+    )
 
 
 def _binary_encode_tiny(col: ResultColumn, val: Any) -> bytes:

@@ -17,7 +17,10 @@ ext_modules = []
 if not os.environ.get("NO_MYPYC"):
     try:
         from mypyc.build import mypycify
-        ext_modules = mypycify(MYPYC_MODULES, opt_level=os.environ.get("MYPYC_OPT_LEVEL", "3"))
+
+        ext_modules = mypycify(
+            MYPYC_MODULES, opt_level=os.environ.get("MYPYC_OPT_LEVEL", "3")
+        )
     except Exception:
         pass
 

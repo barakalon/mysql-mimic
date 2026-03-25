@@ -633,38 +633,42 @@ class Connection:
             )
         ]
         for column in result_set.columns:
-            header_pkts.append(packets.make_column_definition_41(
-                server_charset=self.server_charset,
-                name=column.name,
-                column_type=column.type,
-                character_set=column.character_set,
-            ))
+            header_pkts.append(
+                packets.make_column_definition_41(
+                    server_charset=self.server_charset,
+                    name=column.name,
+                    column_type=column.type,
+                    character_set=column.character_set,
+                )
+            )
         if not self.deprecate_eof():
             header_pkts.append(self.eof())
         self.stream.write_many(header_pkts)
 
-        # Write rows in batches
-        affected_rows = 0
+        # Write rows
         cols = result_set.columns
-        batch = []
         if isinstance(result_set.rows, (list, tuple)):
-            for row in result_set.rows:
-                affected_rows += 1
-                batch.append(packets.make_text_resultset_row(row, cols))
-                if len(batch) >= 1000:
-                    self.stream.write_many(batch)
-                    batch = []
+            rows = (
+                result_set.rows
+                if isinstance(result_set.rows, list)
+                else list(result_set.rows)
+            )
+            affected_rows = self.stream.write_text_rows(rows, list(cols))
         else:
+            affected_rows = 0
+            batch = []
             async for row in cooperative_iterate(aiterate(result_set.rows)):
                 affected_rows += 1
                 batch.append(packets.make_text_resultset_row(row, cols))
                 if len(batch) >= 1000:
                     self.stream.write_many(batch)
                     batch = []
-        if batch:
-            self.stream.write_many(batch)
+            if batch:
+                self.stream.write_many(batch)
 
-        await self.stream.write(self.ok_or_eof(affected_rows=affected_rows), drain=False)
+        await self.stream.write(
+            self.ok_or_eof(affected_rows=affected_rows), drain=False
+        )
         await self.stream.drain()
 
     async def text_resultset(self, result_set: ResultSet) -> AsyncIterator[bytes]:

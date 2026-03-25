@@ -1,9 +1,11 @@
 import asyncio
 import struct
-from typing import Sequence
+from typing import Any, List, Sequence, Tuple
 from ssl import SSLContext
 
 from mysql_mimic.errors import MysqlError, ErrorCode
+from mysql_mimic.results import ResultColumn
+from mysql_mimic.types import ColumnType, uint_len
 from mysql_mimic.utils import seq
 
 _header_struct = struct.Struct("<I")
@@ -86,6 +88,63 @@ class MysqlStream:
             _pack_header(header, 0, len(data) | (next(self.seq) << 24))
             buf.extend(header)
             buf.extend(data)
+
+    def write_text_rows(
+        self, rows: List[Sequence[Any]], columns: List[ResultColumn]
+    ) -> int:
+        """Serialize and frame text result rows directly into the buffer.
+
+        Returns the number of rows written.
+        """
+        buf = self._buffer
+        num_cols = len(columns)
+        count = 0
+        seq_val = self.seq.value
+        seq_size = self.seq.size or 0
+
+        for row in rows:
+            # Reserve 4 bytes for the packet header
+            header_pos = len(buf)
+            buf.extend(b"\x00\x00\x00\x00")
+
+            # Serialize row directly into buf
+            for i in range(num_cols):
+                value = row[i]
+                if value is None:
+                    buf.append(0xFB)
+                    continue
+
+                col = columns[i]
+                if col.use_default_text_encoder:
+                    if isinstance(value, str):
+                        encoded = value.encode(col.codec)
+                    elif isinstance(value, bytes):
+                        encoded = value
+                    else:
+                        encoded = str(value).encode(col.codec)
+                elif col.type == ColumnType.TINY:
+                    encoded = str(int(value)).encode(col.codec)
+                else:
+                    encoded = col.text_encoder(col, value)
+
+                n = len(encoded)
+                if n < 251:
+                    buf.append(n)
+                else:
+                    buf.extend(uint_len(n))
+                buf.extend(encoded)
+
+            # Fill in the packet header now that we know the size
+            payload_len = len(buf) - header_pos - 4
+            _pack_header(buf, header_pos, payload_len | (seq_val << 24))
+            seq_val += 1
+            if seq_size:
+                seq_val = seq_val % seq_size
+            count += 1
+
+        # Sync the sequence counter back
+        self.seq.value = seq_val
+        return count
 
     async def drain(self) -> None:
         if self._buffer:
