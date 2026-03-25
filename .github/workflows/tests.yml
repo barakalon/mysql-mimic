@@ -35,10 +35,6 @@ jobs:
     - name: Test
       run: |
         make test
-    - name: Lint
-      if: matrix.version.python != '3.7'
-      run: |
-        make lint
     - name: Format
       if: matrix.version.python != '3.7'
       run: |

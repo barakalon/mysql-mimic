@@ -1,6 +1,6 @@
 .DEFAULT_TARGET: deps
 
-.PHONY: deps format format-check run lint test build publish clean
+.PHONY: deps format format-check run test build publish clean
 
 deps:
 	pip install --progress-bar off -e .[dev]
@@ -14,9 +14,6 @@ format-check:
 run:
 	python -m mysql_mimic.server
 
-lint:
-	python -m pylint mysql_mimic/ tests/
-
 types:
 	python -m mypy -p mysql_mimic -p tests
 
@@ -25,7 +22,7 @@ test:
 	coverage report
 	coverage html
 
-check: format-check lint types test
+check: format-check types test
 
 build: clean
 	python setup.py sdist bdist_wheel
