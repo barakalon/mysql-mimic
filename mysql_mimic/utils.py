@@ -11,7 +11,6 @@ import string
 from sqlglot import expressions as exp
 from sqlglot.optimizer.scope import traverse_scope
 
-
 T = TypeVar("T")
 
 # MySQL Connector/J uses ASCII to decode nonce

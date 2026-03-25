@@ -332,5 +332,5 @@ def _remove_collate(node: exp.Expression) -> exp.Expression:
     Just remove them for now.
     """
     if isinstance(node, exp.Collate):
-        return node.left
+        return node.left  # type: ignore
     return node

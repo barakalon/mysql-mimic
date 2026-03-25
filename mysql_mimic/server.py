@@ -17,7 +17,6 @@ from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.stream import MysqlStream
 from mysql_mimic.types import Capabilities
 
-
 logger = logging.getLogger(__name__)
 
 

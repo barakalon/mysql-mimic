@@ -4,7 +4,6 @@ from sqlglot.executor import execute
 
 from mysql_mimic import MysqlServer, Session
 
-
 SCHEMA = {
     "test": {
         "x": {
