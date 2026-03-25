@@ -1,11 +1,30 @@
+import os
+
 from setuptools import setup, find_packages
 
 # Import __version__
 exec(open("mysql_mimic/version.py").read())
 
+MYPYC_MODULES = [
+    "mysql_mimic/types.py",
+    "mysql_mimic/charset.py",
+    "mysql_mimic/results.py",
+    "mysql_mimic/packets.py",
+    "mysql_mimic/stream.py",
+]
+
+ext_modules = []
+if not os.environ.get("NO_MYPYC"):
+    try:
+        from mypyc.build import mypycify
+        ext_modules = mypycify(MYPYC_MODULES, opt_level=os.environ.get("MYPYC_OPT_LEVEL", "3"))
+    except Exception:
+        pass
+
 setup(
     name="mysql-mimic",
     version=__version__,
+    ext_modules=ext_modules,
     description="A python implementation of the mysql server protocol",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",

@@ -9,11 +9,13 @@ from typing import (
     Optional,
     Callable,
     Awaitable,
+    Type,
     Any,
 )
 
+from sqlglot import Dialect
 from sqlglot.dialects import MySQL
-from sqlglot import Dialect, expressions as exp
+from sqlglot import expressions as exp
 from sqlglot.executor import execute
 
 from mysql_mimic.charset import CharacterSet
@@ -43,8 +45,6 @@ from mysql_mimic.variables import (
 from mysql_mimic.results import AllowedResult
 
 if TYPE_CHECKING:
-    from sqlglot import DialectType
-
     from mysql_mimic.connection import Connection
 
 
@@ -68,8 +68,6 @@ def mysql_function_mapping(session: Session) -> Functions:
             "SYSTEM_USER": functions["USER"],
             "SESSION_USER": functions["USER"],
             "SCHEMA": functions["DATABASE"],
-            "CURRENT_SCHEMA": functions["DATABASE"],
-            "CURRENT_VERSION": functions["VERSION"],
         }
     )
     return functions
@@ -186,7 +184,7 @@ class Session(BaseSession):
     e.g. session variables, SHOW commands, queries to INFORMATION_SCHEMA, and more
     """
 
-    dialect: DialectType = MySQL
+    dialect: Type[Dialect] = MySQL
 
     def __init__(self, variables: Variables | None = None):
         self.variables = variables or SessionVariables(GlobalVariables())
@@ -297,7 +295,7 @@ class Session(BaseSession):
         self.database = database
 
     def _parse(self, sql: str) -> List[exp.Expression]:
-        return [e for e in Dialect.get_or_raise(self.dialect).parse(sql) if e]  # type: ignore
+        return [e for e in self.dialect().parse(sql) if e]  # type: ignore[misc]
 
     async def _query_info_schema(self, expression: exp.Expression) -> AllowedResult:
         return await ensure_info_schema(await self.schema()).query(expression)
@@ -362,9 +360,7 @@ class Session(BaseSession):
                 # Mysql parse treats EXPLAIN SELECT as a DESCRIBE SELECT statement
                 return await q.next()
             name = q.expression.this.name
-            show = Dialect.get_or_raise(self.dialect).parse(
-                f"SHOW COLUMNS FROM {name}"
-            )[0]
+            show = self.dialect().parse(f"SHOW COLUMNS FROM {name}")[0]
             return await self._show(show) if isinstance(show, exp.Show) else None
         return await q.next()
 

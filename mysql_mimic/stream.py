@@ -1,10 +1,13 @@
 import asyncio
 import struct
+from typing import Sequence
 from ssl import SSLContext
 
 from mysql_mimic.errors import MysqlError, ErrorCode
-from mysql_mimic.types import uint_3, uint_1
 from mysql_mimic.utils import seq
+
+_header_struct = struct.Struct("<I")
+_pack_header = _header_struct.pack_into
 
 
 class ConnectionClosed(Exception):
@@ -23,6 +26,7 @@ class MysqlStream:
         self.seq = seq(256)
         self._buffer = bytearray()
         self._buffer_size = buffer_size
+        self._header = bytearray(4)
 
     async def read(self) -> bytes:
         data = b""
@@ -52,22 +56,36 @@ class MysqlStream:
                 return data
 
     async def write(self, data: bytes, drain: bool = True) -> None:
+        if len(data) < 0xFFFFFF:
+            _pack_header(self._header, 0, len(data) | (next(self.seq) << 24))
+            self._buffer.extend(self._header)
+            self._buffer.extend(data)
+            if drain or len(self._buffer) >= self._buffer_size:
+                await self.drain()
+            return
+
         while True:
             # Grab first 0xFFFFFF bytes to send
             payload = data[:0xFFFFFF]
             data = data[0xFFFFFF:]
 
-            payload_length = uint_3(len(payload))
-            sequence_id = uint_1(next(self.seq))
-            packet = payload_length + sequence_id + payload
-
-            self._buffer.extend(packet)
+            _pack_header(self._header, 0, len(payload) | (next(self.seq) << 24))
+            self._buffer.extend(self._header)
+            self._buffer.extend(payload)
             if drain or len(self._buffer) >= self._buffer_size:
                 await self.drain()
 
-            # We are done unless len(send) == 0xFFFFFF
             if len(payload) != 0xFFFFFF:
                 return
+
+    def write_many(self, packets: Sequence[bytes]) -> None:
+        """Frame and buffer multiple packets without awaiting."""
+        header = self._header
+        buf = self._buffer
+        for data in packets:
+            _pack_header(header, 0, len(data) | (next(self.seq) << 24))
+            buf.extend(header)
+            buf.extend(data)
 
     async def drain(self) -> None:
         if self._buffer:

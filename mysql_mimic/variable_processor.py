@@ -68,11 +68,10 @@ class VariableProcessor:
 
         self._replace_variables()
 
-        try:
-            yield self._expression
-        finally:
-            for k, v in self._orig.items():
-                self._variables[k] = v
+        yield self._expression
+
+        for k, v in self._orig.items():
+            self._variables[k] = v
 
     def _replace_variables(self) -> None:
         """Replaces certain functions in the query with literals provided from the mapping in _functions,
@@ -114,6 +113,6 @@ class VariableProcessor:
             and isinstance(node.parent, exp.Select)
             and node.arg_key == "expressions"
         ):
-            new_node = exp.alias_(new_node, exp.to_identifier(node.sql()))  # type: ignore
+            new_node = exp.alias_(new_node, exp.to_identifier(node.sql()))  # type: ignore[assignment]
 
         return new_node or node
