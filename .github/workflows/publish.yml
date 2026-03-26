@@ -71,12 +71,12 @@ jobs:
   publish:
     needs: [sdist, wheels]
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-    environment: pypi
     steps:
       - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          username: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
