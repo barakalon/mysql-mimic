@@ -52,10 +52,6 @@ jobs:
             arch: arm64
             skip: ""
             name: macos-arm64
-          - os: windows-latest
-            arch: AMD64
-            skip: ""
-            name: windows-x86_64
     runs-on: ${{ matrix.platform.os }}
     steps:
       - uses: actions/checkout@v6
