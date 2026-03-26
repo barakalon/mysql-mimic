@@ -1,10 +1,15 @@
 import asyncio
 import struct
+from typing import Any, Sequence
 from ssl import SSLContext
 
 from mysql_mimic.errors import MysqlError, ErrorCode
-from mysql_mimic.types import uint_3, uint_1
+from mysql_mimic.results import ResultColumn
+from mysql_mimic.types import ColumnType, uint_len
 from mysql_mimic.utils import seq
+
+_header_struct = struct.Struct("<I")
+_pack_header = _header_struct.pack_into
 
 
 class ConnectionClosed(Exception):
@@ -23,6 +28,7 @@ class MysqlStream:
         self.seq = seq(256)
         self._buffer = bytearray()
         self._buffer_size = buffer_size
+        self._header = bytearray(4)
 
     async def read(self) -> bytes:
         data = b""
@@ -52,22 +58,93 @@ class MysqlStream:
                 return data
 
     async def write(self, data: bytes, drain: bool = True) -> None:
+        if len(data) < 0xFFFFFF:
+            _pack_header(self._header, 0, len(data) | (next(self.seq) << 24))
+            self._buffer.extend(self._header)
+            self._buffer.extend(data)
+            if drain or len(self._buffer) >= self._buffer_size:
+                await self.drain()
+            return
+
         while True:
             # Grab first 0xFFFFFF bytes to send
             payload = data[:0xFFFFFF]
             data = data[0xFFFFFF:]
 
-            payload_length = uint_3(len(payload))
-            sequence_id = uint_1(next(self.seq))
-            packet = payload_length + sequence_id + payload
-
-            self._buffer.extend(packet)
+            _pack_header(self._header, 0, len(payload) | (next(self.seq) << 24))
+            self._buffer.extend(self._header)
+            self._buffer.extend(payload)
             if drain or len(self._buffer) >= self._buffer_size:
                 await self.drain()
 
-            # We are done unless len(send) == 0xFFFFFF
             if len(payload) != 0xFFFFFF:
                 return
+
+    def write_many(self, packets: Sequence[bytes]) -> None:
+        """Frame and buffer multiple packets without awaiting."""
+        header = self._header
+        buf = self._buffer
+        for data in packets:
+            _pack_header(header, 0, len(data) | (next(self.seq) << 24))
+            buf.extend(header)
+            buf.extend(data)
+
+    def write_text_rows(
+        self, rows: Sequence[Sequence[Any]], columns: Sequence[ResultColumn]
+    ) -> int:
+        """Serialize and frame text result rows directly into the buffer.
+
+        Returns the number of rows written.
+        """
+        buf = self._buffer
+        num_cols = len(columns)
+        count = 0
+        seq_val = self.seq.value
+        seq_size = self.seq.size or 0
+
+        for row in rows:
+            # Reserve 4 bytes for the packet header
+            header_pos = len(buf)
+            buf.extend(b"\x00\x00\x00\x00")
+
+            # Serialize row directly into buf
+            for i in range(num_cols):
+                value = row[i]
+                if value is None:
+                    buf.append(0xFB)
+                    continue
+
+                col = columns[i]
+                if col.use_default_text_encoder:
+                    if isinstance(value, str):
+                        encoded = value.encode(col.codec)
+                    elif isinstance(value, bytes):
+                        encoded = value
+                    else:
+                        encoded = str(value).encode(col.codec)
+                elif col.type == ColumnType.TINY:
+                    encoded = str(int(value)).encode(col.codec)
+                else:
+                    encoded = col.text_encoder(col, value)
+
+                n = len(encoded)
+                if n < 251:
+                    buf.append(n)
+                else:
+                    buf.extend(uint_len(n))
+                buf.extend(encoded)
+
+            # Fill in the packet header now that we know the size
+            payload_len = len(buf) - header_pos - 4
+            _pack_header(buf, header_pos, payload_len | (seq_val << 24))
+            seq_val += 1
+            if seq_size:
+                seq_val = seq_val % seq_size
+            count += 1
+
+        # Sync the sequence counter back
+        self.seq.value = seq_val
+        return count
 
     async def drain(self) -> None:
         if self._buffer:

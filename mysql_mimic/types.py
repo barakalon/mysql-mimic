@@ -221,13 +221,11 @@ def str_null(s: bytes) -> bytes:
 
 
 def str_len(s: bytes) -> bytes:
-    l = len(s)
-    return uint_len(l) + str_fixed(l, s)
+    return uint_len(len(s)) + s
 
 
 def str_rest(s: bytes) -> bytes:
-    l = len(s)
-    return str_fixed(l, s)
+    return s
 
 
 def read_int_1(reader: io.BytesIO) -> int:

@@ -427,9 +427,7 @@ class Connection:
             await self.stream.write(self.ok())
             return
 
-        async for packet in self.text_resultset(result_set):
-            await self.stream.write(packet, drain=False)
-        await self.stream.drain()
+        await self.write_text_resultset(result_set)
 
     async def handle_stmt_prepare(self, data: bytes) -> None:
         """
@@ -627,29 +625,51 @@ class Connection:
     def deprecate_eof(self) -> bool:
         return Capabilities.CLIENT_DEPRECATE_EOF in self.capabilities
 
-    async def text_resultset(self, result_set: ResultSet) -> AsyncIterator[bytes]:
-        yield packets.make_column_count(
-            capabilities=self.capabilities, column_count=len(result_set.columns)
-        )
-
-        for column in result_set.columns:
-            yield packets.make_column_definition_41(
-                server_charset=self.server_charset,
-                name=column.name,
-                column_type=column.type,
-                character_set=column.character_set,
+    async def write_text_resultset(self, result_set: ResultSet) -> None:
+        # Write header packets
+        header_pkts = [
+            packets.make_column_count(
+                capabilities=self.capabilities, column_count=len(result_set.columns)
             )
-
+        ]
+        for column in result_set.columns:
+            header_pkts.append(
+                packets.make_column_definition_41(
+                    server_charset=self.server_charset,
+                    name=column.name,
+                    column_type=column.type,
+                    character_set=column.character_set,
+                )
+            )
         if not self.deprecate_eof():
-            yield self.eof()
+            header_pkts.append(self.eof())
+        self.stream.write_many(header_pkts)
 
-        affected_rows = 0
+        # Write rows
+        cols = result_set.columns
+        if isinstance(result_set.rows, (list, tuple)):
+            affected_rows = len(result_set.rows)
+            batch_size = 10_000
+            for i in range(0, affected_rows, batch_size):
+                self.stream.write_text_rows(result_set.rows[i : i + batch_size], cols)
+                if i + batch_size < affected_rows:
+                    await asyncio.sleep(0)
+        else:
+            affected_rows = 0
+            batch = []
+            async for row in cooperative_iterate(aiterate(result_set.rows)):
+                affected_rows += 1
+                batch.append(packets.make_text_resultset_row(row, cols))
+                if len(batch) >= 1000:
+                    self.stream.write_many(batch)
+                    batch = []
+            if batch:
+                self.stream.write_many(batch)
 
-        async for row in cooperative_iterate(aiterate(result_set.rows)):
-            affected_rows += 1
-            yield packets.make_text_resultset_row(row, result_set.columns)
-
-        yield self.ok_or_eof(affected_rows=affected_rows)
+        await self.stream.write(
+            self.ok_or_eof(affected_rows=affected_rows), drain=False
+        )
+        await self.stream.drain()
 
     def com_stmt_prepare_response(
         self, statement: PreparedStatement

@@ -21,7 +21,6 @@ from mysql_mimic.types import (
     read_str_len,
     read_uint_len,
     str_len,
-    str_rest,
     uint_len,
     ColumnType,
     read_int_1,
@@ -165,7 +164,7 @@ def make_error(
         parts.append(str_fixed(1, b"#"))
         parts.append(str_fixed(5, get_sqlstate(code)))
 
-    parts.append(str_rest(server_charset.encode(str(msg))))
+    parts.append(server_charset.encode(str(msg)))
 
     return _concat(*parts)
 
@@ -261,7 +260,7 @@ def parse_handshake_response_41(
 
 
 def make_auth_more_data(data: bytes) -> bytes:
-    return _concat(uint_1(1), str_rest(data))  # status tag
+    return _concat(uint_1(1), data)  # status tag
 
 
 def make_auth_switch_request(
@@ -270,7 +269,7 @@ def make_auth_switch_request(
     return _concat(
         uint_1(254),  # status tag
         str_null(server_charset.encode(plugin_name)),
-        str_rest(plugin_provided_data),
+        plugin_provided_data,
     )
 
 
@@ -385,16 +384,17 @@ def make_column_definition_41(
 def make_text_resultset_row(
     row: Sequence[Any], columns: Sequence[ResultColumn]
 ) -> bytes:
-    parts = []
+    parts: List[bytes] = []
 
-    for value, column in zip(row, columns):
+    for i in range(len(columns)):
+        value = row[i]
         if value is None:
             parts.append(b"\xfb")
         else:
-            text = column.text_encode(value)
+            text = columns[i].text_encode(value)
             parts.append(str_len(text))
 
-    return _concat(*parts)
+    return b"".join(parts)
 
 
 def make_com_stmt_prepare_ok(statement: PreparedStatement) -> bytes:
@@ -444,24 +444,15 @@ def make_binary_resultrow(row: Sequence[Any], columns: Sequence[ResultColumn]) -
 
     null_bitmap = NullBitmap.new(column_count, offset=2)
 
-    values = []
-    for i, (val, col) in enumerate(zip(row, columns)):
+    values: List[bytes] = []
+    for i in range(column_count):
+        val = row[i]
         if val is None:
             null_bitmap.flip(i)
         else:
-            values.append(col.binary_encode(val))
+            values.append(columns[i].binary_encode(val))
 
-    values_data = b"".join(values)
-
-    null_bitmap_data = bytes(null_bitmap)
-
-    return b"".join(
-        [
-            uint_1(0),  # packet header
-            str_fixed(len(null_bitmap_data), null_bitmap_data),
-            str_fixed(len(values_data), values_data),
-        ]
-    )
+    return b"".join([uint_1(0), bytes(null_bitmap), b"".join(values)])
 
 
 def parse_handle_stmt_fetch(data: bytes) -> ComStmtFetch:

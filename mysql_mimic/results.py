@@ -20,7 +20,7 @@ from typing import (
 from mysql_mimic.errors import MysqlError
 from mysql_mimic.types import ColumnType, str_len, uint_1, uint_2, uint_4
 from mysql_mimic.charset import CharacterSet
-from mysql_mimic.utils import aiterate
+from mysql_mimic.utils import aiterate, anext_compat, chain_async
 
 Encoder = Callable[[Any, "ResultColumn"], bytes]
 
@@ -48,9 +48,14 @@ class ResultColumn:
         self.name = name
         self.type = type
         self.character_set = character_set
-        self.text_encoder = text_encoder or _TEXT_ENCODERS.get(type) or _unsupported
+        self.codec = character_set.codec
+        default_text = _TEXT_ENCODERS.get(type) or _unsupported
+        self.text_encoder = text_encoder or default_text
         self.binary_encoder = (
             binary_encoder or _BINARY_ENCODERS.get(type) or _unsupported
+        )
+        self.use_default_text_encoder = (
+            text_encoder is None and default_text is _text_encode_str
         )
 
     def text_encode(self, val: Any) -> bytes:
@@ -81,7 +86,7 @@ AllowedResult = Union[
 ]
 
 
-async def ensure_result_set(result: AllowedResult) -> ResultSet:
+async def ensure_result_set(result: object) -> ResultSet:
     if result is None:
         return ResultSet([], [])
     if isinstance(result, ResultSet):
@@ -123,10 +128,10 @@ async def _ensure_result_cols(
     peeks = []
 
     # Find the first non-null value for each column
+    _sentinel: Any = object()
     while remaining:
-        try:
-            peek = await arows.__anext__()
-        except StopAsyncIteration:
+        peek: Any = await anext_compat(arows, _sentinel)
+        if peek is _sentinel:
             break
 
         peeks.append(peek)
@@ -153,15 +158,13 @@ async def _ensure_result_cols(
         )
 
     # Add the consumed rows back in to the iterator
-    async def gen_rows() -> AsyncIterable[Sequence[Any]]:
-        for row in peeks:
-            yield row
-
-        async for row in arows:
-            yield row
-
     assert all(isinstance(col, ResultColumn) for col in columns)
-    return ResultSet(rows=gen_rows(), columns=cast(Sequence[ResultColumn], columns))
+    if isinstance(rows, (list, tuple)):
+        # For sync sequences, return the original data as-is (peeks came from it)
+        return ResultSet(rows=rows, columns=cast(Sequence[ResultColumn], columns))
+    return ResultSet(
+        rows=chain_async(peeks, arows), columns=cast(Sequence[ResultColumn], columns)
+    )
 
 
 def _binary_encode_tiny(col: ResultColumn, val: Any) -> bytes:
@@ -173,7 +176,7 @@ def _binary_encode_str(col: ResultColumn, val: Any) -> bytes:
         val = str(val)
 
     if isinstance(val, str):
-        val = val.encode(col.character_set.codec)
+        val = val.encode(col.codec)
 
     return str_len(val)
 
@@ -286,7 +289,7 @@ def _text_encode_str(col: ResultColumn, val: Any) -> bytes:
         val = str(val)
 
     if isinstance(val, str):
-        val = val.encode(col.character_set.codec)
+        val = val.encode(col.codec)
 
     return val
 

@@ -114,6 +114,6 @@ class VariableProcessor:
             and isinstance(node.parent, exp.Select)
             and node.arg_key == "expressions"
         ):
-            new_node = exp.alias_(new_node, exp.to_identifier(node.sql()))  # type: ignore
+            new_node = exp.alias_(new_node, exp.to_identifier(node.sql()))  # type: ignore[assignment]
 
         return new_node or node

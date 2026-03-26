@@ -6,26 +6,81 @@ on:
       - "v*"
 
 jobs:
-  deploy:
+  sdist:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.9'
-        cache: pip
-        cache-dependency-path: setup.py
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        make deps
-    - name: Build
-      run: |
-        make build
-    - name: Publish
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: |
-        make publish
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install build
+      - run: python -m build --sdist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314"]
+        platform:
+          - os: ubuntu-latest
+            arch: x86_64
+            skip: "*-musllinux_*"
+            name: linux-x86_64-manylinux
+          - os: ubuntu-latest
+            arch: x86_64
+            skip: "*-manylinux_*"
+            name: linux-x86_64-musllinux
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+            skip: "*-musllinux_*"
+            name: linux-aarch64-manylinux
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+            skip: "*-manylinux_*"
+            name: linux-aarch64-musllinux
+          - os: macos-latest
+            arch: x86_64
+            skip: ""
+            name: macos-x86_64
+          - os: macos-latest
+            arch: arm64
+            skip: ""
+            name: macos-arm64
+          - os: windows-latest
+            arch: AMD64
+            skip: ""
+            name: windows-x86_64
+    runs-on: ${{ matrix.platform.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pypa/cibuildwheel@v3.4
+        env:
+          CIBW_ARCHS: ${{ matrix.platform.arch }}
+          CIBW_BUILD: "${{ matrix.python }}-*"
+          CIBW_SKIP: "pp* ${{ matrix.platform.skip }}"
+          CIBW_PRERELEASE_PYTHONS: "1"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.platform.name }}-${{ matrix.python }}
+          path: wheelhouse/*.whl
+
+  publish:
+    needs: [sdist, wheels]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment: pypi
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
