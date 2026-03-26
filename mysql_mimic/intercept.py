@@ -7,7 +7,6 @@ from sqlglot import expressions as exp
 from mysql_mimic.errors import MysqlError, ErrorCode
 from mysql_mimic.variables import DEFAULT
 
-
 # Mapping of transaction characteristic from SET TRANSACTION statements to their corresponding system variable
 TRANSACTION_CHARACTERISTICS = {
     "ISOLATION LEVEL REPEATABLE READ": ("transaction_isolation", "REPEATABLE-READ"),
