@@ -74,6 +74,24 @@ Plugins are provided to the server by implementing [`mysql_mimic.IdentityProvide
 
 Custom plugins can be created by extending [`mysql_mimic.auth.AuthPlugin`](mysql_mimic/auth.py).
 
+## Performance
+
+MySQL-Mimic uses [mypyc](https://mypyc.readthedocs.io/) to compile performance-critical modules to C extensions. When installed from a wheel (the default via `pip install`), the compiled extensions are included automatically.
+
+| | rows/s | time | vs baseline |
+|---|---|---|---|
+| Pure Python | 122,000 | 82ms | 1.0x |
+| mypyc compiled | 380,000 | 26ms | **3.1x** |
+
+*Benchmark: 10,000 rows x 5 columns, real client-server over loopback. See `bench.py`.*
+
+### Options
+
+- `NO_MYPYC=1 pip install .` - Install without compiling C extensions (pure Python fallback)
+- `MYPYC_OPT_LEVEL=2 pip install .` - Set mypyc optimization level (default: 3)
+
+If installing from source without a C compiler, the package falls back to pure Python automatically.
+
 ## Development
 
 You can install dependencies with `make deps`.
