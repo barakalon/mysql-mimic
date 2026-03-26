@@ -5,7 +5,7 @@ import inspect
 import sys
 from collections.abc import Iterator  # pylint: disable=import-error
 import random
-from typing import List, TypeVar, AsyncIterable, Iterable, AsyncIterator, cast
+from typing import Any, List, TypeVar, AsyncIterable, Iterable, AsyncIterator, cast
 import string
 
 from sqlglot import expressions as exp
@@ -98,6 +98,14 @@ def dict_depth(d: dict) -> int:
     except StopIteration:
         # d.values() returns an empty sequence
         return 1
+
+
+async def anext_compat(iterator: Any, default: Any) -> Any:
+    """anext() with default, compatible with Python < 3.10 and mypyc."""
+    try:
+        return await iterator.__anext__()
+    except StopAsyncIteration:
+        return default
 
 
 async def chain_async(

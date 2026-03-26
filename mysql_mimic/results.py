@@ -20,7 +20,7 @@ from typing import (
 from mysql_mimic.errors import MysqlError
 from mysql_mimic.types import ColumnType, str_len, uint_1, uint_2, uint_4
 from mysql_mimic.charset import CharacterSet
-from mysql_mimic.utils import aiterate, chain_async
+from mysql_mimic.utils import aiterate, anext_compat, chain_async
 
 Encoder = Callable[[Any, "ResultColumn"], bytes]
 
@@ -130,7 +130,7 @@ async def _ensure_result_cols(
     # Find the first non-null value for each column
     _sentinel: Any = object()
     while remaining:
-        peek: Any = await anext(arows, _sentinel)
+        peek: Any = await anext_compat(arows, _sentinel)
         if peek is _sentinel:
             break
 
