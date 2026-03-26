@@ -648,7 +648,12 @@ class Connection:
         # Write rows
         cols = result_set.columns
         if isinstance(result_set.rows, (list, tuple)):
-            affected_rows = self.stream.write_text_rows(result_set.rows, cols)
+            affected_rows = len(result_set.rows)
+            batch_size = 10_000
+            for i in range(0, affected_rows, batch_size):
+                self.stream.write_text_rows(result_set.rows[i : i + batch_size], cols)
+                if i + batch_size < affected_rows:
+                    await asyncio.sleep(0)
         else:
             affected_rows = 0
             batch = []

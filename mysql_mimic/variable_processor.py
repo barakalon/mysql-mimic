@@ -68,10 +68,11 @@ class VariableProcessor:
 
         self._replace_variables()
 
-        yield self._expression
-
-        for k, v in self._orig.items():
-            self._variables[k] = v
+        try:
+            yield self._expression
+        finally:
+            for k, v in self._orig.items():
+                self._variables[k] = v
 
     def _replace_variables(self) -> None:
         """Replaces certain functions in the query with literals provided from the mapping in _functions,
