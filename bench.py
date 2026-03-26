@@ -1,15 +1,13 @@
 """Benchmark: real client-server round trip with mysql.connector."""
 
-import cProfile
 import multiprocessing
-import pstats
 import signal
 import time
 
 import mysql.connector
+from mysql.connector.cursor import MySQLCursorPrepared
 
 from mysql_mimic import MysqlServer, Session
-
 
 NUM_ROWS = 10_000
 
@@ -25,77 +23,64 @@ class BenchSession(Session):
         return ROWS, COLUMNS
 
 
-def run_server(port_q, profile_path):
+def run_server(port_q):
     import asyncio
-
-    profiler = cProfile.Profile()
-
-    def dump_profile(signum, frame):
-        profiler.disable()
-        profiler.dump_stats(profile_path)
-        raise SystemExit(0)
-
-    signal.signal(signal.SIGUSR1, dump_profile)
 
     async def _serve():
         server = MysqlServer(session_factory=BenchSession)
         await server.start_server(host="127.0.0.1", port=0)
         port = server._server.sockets[0].getsockname()[1]
         port_q.put(port)
-        profiler.enable()
         await server._server.serve_forever()
 
     asyncio.run(_serve())
 
 
-def main():
-    profile_path = "/tmp/server_profile.prof"
-    port_q = multiprocessing.Queue()
-    proc = multiprocessing.Process(target=run_server, args=(port_q, profile_path), daemon=True)
-    proc.start()
-    port = port_q.get(timeout=10)
-
+def bench_text(port):
     conn = mysql.connector.connect(host="127.0.0.1", port=port, user="root")
     cursor = conn.cursor()
-
-    # warmup
     cursor.execute("SELECT * FROM bench")
     cursor.fetchall()
-
-    # timed runs
     times = []
     for _ in range(10):
         t0 = time.perf_counter()
         cursor.execute("SELECT * FROM bench")
         rows = cursor.fetchall()
         times.append(time.perf_counter() - t0)
-
-    # profiled client run
-    client_profile_path = "/tmp/client_profile.prof"
-    profiler = cProfile.Profile()
-    profiler.enable()
-    cursor.execute("SELECT * FROM bench")
-    cursor.fetchall()
-    profiler.disable()
-    profiler.dump_stats(client_profile_path)
-
     cursor.close()
     conn.close()
+    return min(times), len(rows)
 
-    # signal server to dump profile and exit
-    import os
-    os.kill(proc.pid, signal.SIGUSR1)
-    proc.join(timeout=5)
 
-    best = min(times)
-    count = len(rows)
-    print(f"{count:,} rows in {best*1000:.1f}ms ({count / best:,.0f} rows/s)\n")
+def bench_binary(port):
+    conn = mysql.connector.connect(host="127.0.0.1", port=port, user="root")
+    cursor = conn.cursor(cursor_class=MySQLCursorPrepared)
+    cursor.execute("SELECT * FROM bench")
+    cursor.fetchall()
+    times = []
+    for _ in range(10):
+        t0 = time.perf_counter()
+        cursor.execute("SELECT * FROM bench")
+        rows = cursor.fetchall()
+        times.append(time.perf_counter() - t0)
+    cursor.close()
+    conn.close()
+    return min(times), len(rows)
 
-    # print client profile
-    stats = pstats.Stats(client_profile_path)
-    stats.sort_stats("tottime")
-    print("=== Client profile: top 30 by total time ===")
-    stats.print_stats(30)
+
+def main():
+    port_q = multiprocessing.Queue()
+    proc = multiprocessing.Process(target=run_server, args=(port_q,), daemon=True)
+    proc.start()
+    port = port_q.get(timeout=10)
+
+    for name, fn in [("text", bench_text), ("binary", bench_binary)]:
+        best, count = fn(port)
+        print(
+            f"{name:>8}: {count:,} rows in {best*1000:.1f}ms ({count / best:,.0f} rows/s)"
+        )
+
+    proc.kill()
 
 
 if __name__ == "__main__":

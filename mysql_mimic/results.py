@@ -86,7 +86,7 @@ AllowedResult = Union[
 ]
 
 
-async def ensure_result_set(result: AllowedResult) -> ResultSet:
+async def ensure_result_set(result: object) -> ResultSet:
     if result is None:
         return ResultSet([], [])
     if isinstance(result, ResultSet):

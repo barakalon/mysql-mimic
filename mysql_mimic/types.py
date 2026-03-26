@@ -224,6 +224,10 @@ def str_len(s: bytes) -> bytes:
     return uint_len(len(s)) + s
 
 
+def str_rest(s: bytes) -> bytes:
+    return s
+
+
 def read_int_1(reader: io.BytesIO) -> int:
     data = reader.read(1)
     return struct.unpack("<b", data)[0]

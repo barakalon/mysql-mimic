@@ -13,8 +13,10 @@ MYPYC_MODULES = [
     "mysql_mimic/stream.py",
 ]
 
+import sys
+
 ext_modules = []
-if not os.environ.get("NO_MYPYC"):
+if sys.version_info >= (3, 9) and not os.environ.get("NO_MYPYC"):
     try:
         from mypyc.build import mypycify
 
