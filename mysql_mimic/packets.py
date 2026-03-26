@@ -21,7 +21,6 @@ from mysql_mimic.types import (
     read_str_len,
     read_uint_len,
     str_len,
-    str_rest,
     uint_len,
     ColumnType,
     read_int_1,
@@ -165,7 +164,7 @@ def make_error(
         parts.append(str_fixed(1, b"#"))
         parts.append(str_fixed(5, get_sqlstate(code)))
 
-    parts.append(str_rest(server_charset.encode(str(msg))))
+    parts.append(server_charset.encode(str(msg)))
 
     return _concat(*parts)
 
@@ -261,7 +260,7 @@ def parse_handshake_response_41(
 
 
 def make_auth_more_data(data: bytes) -> bytes:
-    return _concat(uint_1(1), str_rest(data))  # status tag
+    return _concat(uint_1(1), data)  # status tag
 
 
 def make_auth_switch_request(
@@ -270,7 +269,7 @@ def make_auth_switch_request(
     return _concat(
         uint_1(254),  # status tag
         str_null(server_charset.encode(plugin_name)),
-        str_rest(plugin_provided_data),
+        plugin_provided_data,
     )
 
 
