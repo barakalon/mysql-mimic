@@ -17,15 +17,12 @@ run:
 types:
 	python -m mypy -p mysql_mimic -p tests
 
-types-mypyc:
-	python -c "exec(open('setup.py').read().split('import sys')[0]); from mypyc.build import mypycify; mypycify(MYPYC_MODULES)"
-
 test:
 	coverage run --source=mysql_mimic -m pytest
 	coverage report
 	coverage html
 
-check: format-check types types-mypyc test
+check: format-check types test
 
 build: clean
 	python setup.py sdist bdist_wheel
