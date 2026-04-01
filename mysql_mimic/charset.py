@@ -55,7 +55,7 @@ class CharacterSet(IntEnum):
     def default_collation(self) -> Collation:
         return DEFAULT_COLLATIONS[self]
 
-    def decode(self, b: bytes) -> str:
+    def decode(self, b: bytes | bytearray) -> str:
         return b.decode(self.codec)
 
     def encode(self, s: str) -> bytes:
