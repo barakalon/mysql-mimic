@@ -43,6 +43,10 @@ jobs:
       if: matrix.version.python == '3.12'
       run: |
         make types
+    - name: Type annotations (mypyc strict)
+      if: matrix.version.python == '3.12'
+      run: |
+        make types-mypyc
   mysql-connector-j:
     name: Integration (mysql-connector-j)
     runs-on: ubuntu-latest

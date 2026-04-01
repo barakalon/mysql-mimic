@@ -19,12 +19,12 @@ ext_modules = []
 if sys.version_info >= (3, 9) and not os.environ.get("NO_MYPYC"):
     try:
         from mypyc.build import mypycify
-
+    except ImportError:
+        pass
+    else:
         ext_modules = mypycify(
             MYPYC_MODULES, opt_level=os.environ.get("MYPYC_OPT_LEVEL", "3")
         )
-    except Exception:
-        pass
 
 setup(
     name="mysql-mimic",
