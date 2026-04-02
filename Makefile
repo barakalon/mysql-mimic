@@ -2,8 +2,14 @@
 
 .PHONY: deps format format-check run test build publish clean
 
+# Install dev dependencies; skip Kerberos deps on Windows (requires libkrb5-dev)
+ifeq ($(OS),Windows_NT)
 deps:
-	pip install --progress-bar off -e .[dev]
+	pip install --progress-bar off -e ".[dev]"
+else
+deps:
+	pip install --progress-bar off -e ".[dev,dev-krb5]"
+endif
 
 format:
 	python -m black .

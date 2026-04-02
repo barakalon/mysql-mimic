@@ -41,6 +41,7 @@ setup(
     python_requires=">=3.6",
     install_requires=["sqlglot"],
     extras_require={
+        # Core dev dependencies — cross-platform, works on Linux, macOS, and Windows
         "dev": [
             "aiomysql",
             "mypy",
@@ -48,8 +49,6 @@ setup(
             "black",
             "coverage",
             "freezegun",
-            "gssapi",
-            "k5test",
             "pylint",
             "pytest",
             "pytest-asyncio",
@@ -57,6 +56,12 @@ setup(
             "sqlalchemy",
             "twine",
             "wheel",
+        ],
+        # Kerberos dev dependencies — requires system krb5 libraries (Linux only in CI)
+        # gssapi and k5test need libkrb5-dev which is not available on Windows
+        "dev-krb5": [
+            "gssapi",
+            "k5test",
         ],
         "krb5": ["gssapi"],
     },
