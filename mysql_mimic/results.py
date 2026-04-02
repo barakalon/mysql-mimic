@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, date, timedelta
 from typing import (
     Iterable,
+    List,
     Sequence,
     Optional,
     Callable,
@@ -408,20 +409,25 @@ class NullBitmap:
 
     __slots__ = ("offset", "bitmap")
 
-    def __init__(self, bitmap: bytearray, offset: int = 0):
+    # bitmap is List[int] rather than bytearray because mypyc does not support
+    # bytearray as a native type. Each element represents one byte (0-255).
+    # This preserves the same indexing and mutation semantics as bytearray.
+    def __init__(self, bitmap: List[int], offset: int = 0):
         self.offset = offset
         self.bitmap = bitmap
 
     @classmethod
     def new(cls, num_bits: int, offset: int = 0) -> NullBitmap:
-        bitmap = bytearray(cls._num_bytes(num_bits, offset))
+        # Zero-filled list of bytes, equivalent to bytearray(n)
+        bitmap = [0] * cls._num_bytes(num_bits, offset)
         return cls(bitmap, offset)
 
     @classmethod
     def from_buffer(
         cls, buffer: io.BytesIO, num_bits: int, offset: int = 0
     ) -> NullBitmap:
-        bitmap = bytearray(buffer.read(cls._num_bytes(num_bits, offset)))
+        # Convert bytes from buffer to list of ints, equivalent to bytearray(...)
+        bitmap = list(buffer.read(cls._num_bytes(num_bits, offset)))
         return cls(bitmap, offset)
 
     @classmethod

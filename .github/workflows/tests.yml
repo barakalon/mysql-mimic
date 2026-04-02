@@ -16,11 +16,7 @@ jobs:
         python-version: "3.14"
         cache: pip
         cache-dependency-path: setup.py
-    # TODO: Remove NO_MYPYC once mypyc type issues are resolved
-    # See: https://github.com/barakalon/mysql-mimic/pull/73
     - name: Install dependencies
-      env:
-        NO_MYPYC: "1"
       run: |
         python -m pip install --upgrade pip
         pip install --progress-bar off -e ".[dev]"
@@ -56,11 +52,7 @@ jobs:
     - name: Install make (Windows)
       if: runner.os == 'Windows'
       run: choco install make -y
-    # TODO: Remove NO_MYPYC once mypyc type issues are resolved
-    # See: https://github.com/barakalon/mysql-mimic/pull/73
     - name: Install dependencies
-      env:
-        NO_MYPYC: "1"
       run: |
         python -m pip install --upgrade pip
         make deps
@@ -80,11 +72,7 @@ jobs:
         python-version: "3.14"
         cache: pip
         cache-dependency-path: setup.py
-    # TODO: Remove NO_MYPYC once mypyc type issues are resolved
-    # See: https://github.com/barakalon/mysql-mimic/pull/73
     - name: Install Python dependencies
-      env:
-        NO_MYPYC: "1"
       run: |
         python -m pip install --upgrade pip
         make deps
