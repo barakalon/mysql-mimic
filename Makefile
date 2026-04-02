@@ -2,13 +2,15 @@
 
 .PHONY: deps format format-check run test build publish clean
 
-# Install dev dependencies; skip Kerberos deps on Windows (requires libkrb5-dev)
-ifeq ($(OS),Windows_NT)
-deps:
-	pip install --progress-bar off -e ".[dev]"
-else
+# Kerberos dev dependencies (gssapi, k5test) require system krb5 libraries
+# which are only reliably available on Linux. Skip on Windows and macOS.
+UNAME_S := $(shell uname -s 2>/dev/null)
+ifeq ($(UNAME_S),Linux)
 deps:
 	pip install --progress-bar off -e ".[dev,dev-krb5]"
+else
+deps:
+	pip install --progress-bar off -e ".[dev]"
 endif
 
 format:

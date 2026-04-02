@@ -23,7 +23,7 @@ if sys.version_info >= (3, 9) and not os.environ.get("NO_MYPYC"):
         ext_modules = mypycify(
             MYPYC_MODULES, opt_level=os.environ.get("MYPYC_OPT_LEVEL", "3")
         )
-    except Exception:
+    except ImportError:
         pass
 
 setup(

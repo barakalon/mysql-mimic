@@ -23,7 +23,7 @@ jobs:
         NO_MYPYC: "1"
       run: |
         python -m pip install --upgrade pip
-        make deps
+        pip install --progress-bar off -e ".[dev]"
     - name: Format
       run: make format-check
     - name: Type annotations
