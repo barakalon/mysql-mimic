@@ -218,6 +218,28 @@ async def test_prepared_stmt(
 
 
 @pytest.mark.asyncio
+async def test_prepared_stmt_null_bitmap_across_bytes(
+    session: MockSession,
+    mysql_connector_conn: MySQLConnectionAbstract,
+) -> None:
+    session.echo = True
+    sql = "SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? FROM x"
+    params = ("a", None, "b", "c", "d", None, "e", "f", None)
+
+    result = await query(
+        conn=mysql_connector_conn,
+        sql=sql,
+        cursor_class=PreparedDictCursor,
+        params=params,
+    )
+
+    assert (
+        result[0]["sql"]
+        == "SELECT 'a', NULL, 'b', 'c', 'd', NULL, 'e', 'f', NULL FROM x"
+    )
+
+
+@pytest.mark.asyncio
 async def test_init(port: int, session: MockSession, server: MysqlServer) -> None:
     async with aiomysql.connect(
         port=port, user="levon_helm", db="db", program_name="test"
