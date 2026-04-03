@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, date, timedelta
 from typing import (
     Iterable,
+    List,
     Sequence,
     Optional,
     Callable,
@@ -445,4 +446,6 @@ class NullBitmap:
         return bytes(self.bitmap)
 
     def __repr__(self) -> str:
-        return "".join(format(b, "08b") for b in self.bitmap)
+        # Use indexed access — mypyc rejects direct iteration over bytearray
+        # ("bytearray is not a valid sequence") but index access works fine.
+        return "".join(format(self.bitmap[i], "08b") for i in range(len(self.bitmap)))

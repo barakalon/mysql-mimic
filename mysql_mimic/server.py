@@ -128,6 +128,11 @@ class MysqlServer:
         Args:
             **kwargs: keyword args passed to `asyncio.start_unix_server`
         """
+        if not hasattr(asyncio, "start_unix_server"):
+            raise NotImplementedError(
+                "Unix domain sockets are not supported on this platform."
+            )
+
         kw = {}
         kw.update(self._serve_kwargs)
         kw.update(kwargs)
