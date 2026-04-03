@@ -11,7 +11,7 @@ from mysql_mimic import packets
 from mysql_mimic.auth import IdentityProvider, SimpleIdentityProvider
 from mysql_mimic.connection import Connection
 from mysql_mimic.control import Control, LocalControl, TooManyConnections
-from mysql_mimic.errors import ErrorCode
+from mysql_mimic.errors import ErrorCode, MysqlError
 from mysql_mimic.session import Session, BaseSession
 from mysql_mimic.constants import DEFAULT_SERVER_CAPABILITIES
 from mysql_mimic.stream import MysqlStream
@@ -128,6 +128,11 @@ class MysqlServer:
         Args:
             **kwargs: keyword args passed to `asyncio.start_unix_server`
         """
+        if not hasattr(asyncio, "start_unix_server"):
+            raise NotImplementedError(
+                "Unix domain sockets are not supported on this platform."
+            )
+
         kw = {}
         kw.update(self._serve_kwargs)
         kw.update(kwargs)
