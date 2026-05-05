@@ -149,7 +149,7 @@ class MysqlStream:
     async def drain(self) -> None:
         if self._buffer:
             self.writer.write(self._buffer)
-            self._buffer.clear()
+            self._buffer = bytearray()
         await self.writer.drain()
 
     def reset_seq(self) -> None:
