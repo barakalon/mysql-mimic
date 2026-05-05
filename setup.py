@@ -56,6 +56,7 @@ setup(
             "sphinx",
             "sqlalchemy",
             "twine",
+            "uvloop; sys_platform != 'win32'",
             "wheel",
         ],
         # Kerberos dev dependencies — requires system krb5 libraries (Linux only in CI)
