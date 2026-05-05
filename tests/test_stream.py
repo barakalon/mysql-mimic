@@ -1,3 +1,6 @@
+import asyncio
+import socket
+
 import pytest
 
 from mysql_mimic.errors import MysqlError
@@ -145,3 +148,30 @@ async def test_large_write() -> None:
         writer.data == b"\xff\xff\xff\x00" + bytes(0xFFFFFF) + b"\x06\x00\x00\x01kelsin"
     )
     assert next(s.seq) == 2
+
+
+def test_drain_does_not_raise_buffer_error_on_uvloop() -> None:
+    uvloop = pytest.importorskip("uvloop")
+
+    async def run() -> None:
+        sock1, sock2 = socket.socketpair()
+        try:
+            reader, writer = await asyncio.open_connection(sock=sock1)
+            _, peer_writer = await asyncio.open_connection(sock=sock2)
+            try:
+                stream = MysqlStream(reader=reader, writer=writer)
+                payload = b"x" * 4096
+                for _ in range(4):
+                    await stream.write(payload, drain=True)
+            finally:
+                writer.close()
+                peer_writer.close()
+        finally:
+            sock1.close()
+            sock2.close()
+
+    loop = uvloop.new_event_loop()
+    try:
+        loop.run_until_complete(run())
+    finally:
+        loop.close()
