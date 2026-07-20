@@ -18,7 +18,13 @@ from mysql_mimic.charset import CharacterSet
 from mysql_mimic.results import AllowedResult
 from mysql_mimic.constants import INFO_SCHEMA
 from mysql_mimic.types import ColumnType
-from tests.conftest import PreparedDictCursor, query, MockSession, ConnectFixture
+from tests.conftest import (
+    PreparedDictCursor,
+    query,
+    to_thread,
+    MockSession,
+    ConnectFixture,
+)
 from tests.fixtures import queries
 
 QueryFixture = Callable[[str], Awaitable[Sequence[Dict[str, Any]]]]
@@ -923,3 +929,54 @@ async def test_sqlalchemy_session(
             result = await session.execute(text("SELECT 1"))
             assert result.scalars().one() == 1
             await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_affected_rows_and_last_insert_id(
+    session: MockSession,
+    server: MysqlServer,
+    mysql_connector_conn: MySQLConnectionAbstract,
+    aiomysql_conn: aiomysql.Connection,
+) -> None:
+    session.return_value = ResultSet(
+        rows=[],
+        columns=[],
+        affected_rows=3,
+        last_insert_id=42,
+    )
+
+    # COM_QUERY (text protocol)
+    cursor = await to_thread(mysql_connector_conn.cursor)
+    with closing(cursor):
+        await to_thread(cursor.execute, "UPDATE x SET a = 1")
+        assert cursor.rowcount == 3
+        assert cursor.lastrowid == 42
+
+    # COM_STMT_EXECUTE (binary protocol)
+    cursor = await to_thread(
+        mysql_connector_conn.cursor, cursor_class=PreparedDictCursor
+    )
+    with closing(cursor):
+        await to_thread(cursor.execute, "UPDATE x SET a = 1")
+        assert cursor.rowcount == 3
+        assert cursor.lastrowid == 42
+
+    async with aiomysql_conn.cursor() as cur:
+        await cur.execute("UPDATE x SET a = 1")
+        assert cur.rowcount == 3
+        assert cur.lastrowid == 42
+
+
+@pytest.mark.asyncio
+async def test_affected_rows_defaults_to_zero(
+    session: MockSession,
+    server: MysqlServer,
+    mysql_connector_conn: MySQLConnectionAbstract,
+) -> None:
+    session.return_value = None
+
+    cursor = await to_thread(mysql_connector_conn.cursor)
+    with closing(cursor):
+        await to_thread(cursor.execute, "UPDATE x SET a = 1")
+        assert cursor.rowcount == 0
+        assert cursor.lastrowid == 0
