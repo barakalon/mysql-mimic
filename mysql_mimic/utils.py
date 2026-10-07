@@ -121,10 +121,10 @@ async def chain_async(
 async def aiterate(iterable: AsyncIterable[T] | Iterable[T]) -> AsyncIterator[T]:
     """Iterate either an async iterable or a regular iterable"""
     if inspect.isasyncgen(iterable):
-        async for item in iterable:
+        async for item in cast(AsyncIterable[T], iterable):
             yield item
     else:
-        for item in cast(Iterable, iterable):
+        for item in cast(Iterable[T], iterable):
             yield item
 
 
