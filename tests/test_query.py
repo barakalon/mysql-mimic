@@ -313,16 +313,26 @@ async def test_query_attributes(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "DESCRIBE SELECT b from a",
+        "DESCRIBE SELECT b FROM a UNION ALL SELECT c FROM d",
+        "DESCRIBE (SELECT b FROM a)",
+        "DESCRIBE WITH t AS (SELECT b FROM a) SELECT b FROM t",
+        "EXPLAIN SELECT b FROM a UNION ALL SELECT c FROM d",
+    ],
+)
 async def test_describe_select(
     session: MockSession,
     server: MysqlServer,
     query_fixture: QueryFixture,
+    sql: str,
 ) -> None:
     session.echo = True
-    sql = "DESCRIBE SELECT b from a"
     with freeze_time("2023-01-01"):
         result = await query_fixture(sql)
-        assert [{"sql": "DESCRIBE SELECT b from a"}] == list(result)
+        assert [{"sql": sql}] == list(result)
 
 
 # pylint: disable=trailing-whitespace
@@ -762,6 +772,29 @@ async def test_describe_select(
                 },
             ],
         ),
+        (
+            "describe db.x",
+            [
+                {
+                    "Default": None,
+                    "Extra": None,
+                    "Field": "a",
+                    "Key": None,
+                    "Null": "YES",
+                    "Type": "TEXT",
+                },
+                {
+                    "Default": None,
+                    "Extra": None,
+                    "Field": "b",
+                    "Key": None,
+                    "Null": "YES",
+                    "Type": "TEXT",
+                },
+            ],
+        ),
+        ("describe other_db.x", []),
+        ("describe `no-such-table`", []),
         (
             "show tables from information_schema like 'k%'",
             [
