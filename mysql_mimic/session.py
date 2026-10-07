@@ -356,17 +356,20 @@ class Session(BaseSession):
         return await self._query_info_schema(select)
 
     async def _describe_middleware(self, q: Query) -> AllowedResult:
-        """Intercept DESCRIBE statements"""
-        if isinstance(q.expression, exp.Describe):
-            if isinstance(q.expression.this, exp.Select):
-                # Mysql parse treats EXPLAIN SELECT as a DESCRIBE SELECT statement
-                return await q.next()
-            name = q.expression.this.name
-            show = Dialect.get_or_raise(self.dialect).parse(
-                f"SHOW COLUMNS FROM {name}"
-            )[0]
-            return await self._show(show) if isinstance(show, exp.Show) else None
-        return await q.next()
+        """Intercept DESCRIBE <table> statements"""
+        if not isinstance(q.expression, exp.Describe):
+            return await q.next()
+        this = q.expression.this
+        if isinstance(this, exp.Query):
+            # Mysql parse treats EXPLAIN <query> as a DESCRIBE <query> statement.
+            # This includes set operations (UNION, ...) and parenthesized queries.
+            return await q.next()
+        show = exp.Show(
+            this="COLUMNS",
+            target=exp.to_identifier(this.name),
+            db=this.args.get("db") if isinstance(this, exp.Table) else None,
+        )
+        return await self._show(show)
 
     async def _rollback_middleware(self, q: Query) -> AllowedResult:
         """Intercept ROLLBACK statements"""
