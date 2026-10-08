@@ -424,7 +424,7 @@ class Connection:
         result_set = await self.query(com_query.sql, com_query.query_attrs)
 
         if not result_set:
-            await self.stream.write(self.ok())
+            await self.stream.write(self.ok_from_result(result_set))
             return
 
         await self.write_text_resultset(result_set)
@@ -486,7 +486,7 @@ class Connection:
         )
 
         if not result_set:
-            await self.stream.write(self.ok())
+            await self.stream.write(self.ok_from_result(result_set))
             return
 
         await self.stream.write(types.uint_len(len(result_set.columns)))
@@ -585,6 +585,16 @@ class Connection:
             await self.session.handle_query(sql, query_attrs)
         )
         return result_set
+
+    def ok_from_result(self, result_set: ResultSet) -> bytes:
+        """
+        OK packet for a statement that returned no rows, carrying any
+        affected_rows/last_insert_id the session reported.
+        """
+        return self.ok(
+            affected_rows=result_set.affected_rows or 0,
+            last_insert_id=result_set.last_insert_id or 0,
+        )
 
     def ok(self, **kwargs: Any) -> bytes:
         return packets.make_ok(
